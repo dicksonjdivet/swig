@@ -130,24 +130,24 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
 %pragma(csharp) imclasscode=%{
   protected class SWIGExceptionHelper {
 
-    public delegate void ExceptionDelegate(string message);
-    public delegate void ExceptionArgumentDelegate(string message, string paramName);
+    typedef ExceptionDelegate = Void Function(Pointer<Utf8> message);
+    typedef ExceptionArgumentDelegate = Void Function(Pointer<Utf8> message, Pointer<Utf8> paramName);
 
-    static ExceptionDelegate applicationDelegate = new ExceptionDelegate(SetPendingApplicationException);
-    static ExceptionDelegate arithmeticDelegate = new ExceptionDelegate(SetPendingArithmeticException);
-    static ExceptionDelegate divideByZeroDelegate = new ExceptionDelegate(SetPendingDivideByZeroException);
-    static ExceptionDelegate indexOutOfRangeDelegate = new ExceptionDelegate(SetPendingIndexOutOfRangeException);
-    static ExceptionDelegate invalidCastDelegate = new ExceptionDelegate(SetPendingInvalidCastException);
-    static ExceptionDelegate invalidOperationDelegate = new ExceptionDelegate(SetPendingInvalidOperationException);
-    static ExceptionDelegate ioDelegate = new ExceptionDelegate(SetPendingIOException);
-    static ExceptionDelegate nullReferenceDelegate = new ExceptionDelegate(SetPendingNullReferenceException);
-    static ExceptionDelegate outOfMemoryDelegate = new ExceptionDelegate(SetPendingOutOfMemoryException);
-    static ExceptionDelegate overflowDelegate = new ExceptionDelegate(SetPendingOverflowException);
-    static ExceptionDelegate systemDelegate = new ExceptionDelegate(SetPendingSystemException);
+    final ExceptionDelegate applicationDelegate = ExceptionDelegate(SetPendingApplicationException);
+    final ExceptionDelegate arithmeticDelegate = ExceptionDelegate(SetPendingArithmeticException);
+    final ExceptionDelegate divideByZeroDelegate = ExceptionDelegate(SetPendingDivideByZeroException);
+    final ExceptionDelegate indexOutOfRangeDelegate = ExceptionDelegate(SetPendingIndexOutOfRangeException);
+    final ExceptionDelegate invalidCastDelegate = ExceptionDelegate(SetPendingInvalidCastException);
+    final ExceptionDelegate invalidOperationDelegate = ExceptionDelegate(SetPendingInvalidOperationException);
+    final ExceptionDelegate ioDelegate = ExceptionDelegate(SetPendingIOException);
+    final ExceptionDelegate nullReferenceDelegate = ExceptionDelegate(SetPendingNullReferenceException);
+    final ExceptionDelegate outOfMemoryDelegate = ExceptionDelegate(SetPendingOutOfMemoryException);
+    final ExceptionDelegate overflowDelegate = ExceptionDelegate(SetPendingOverflowException);
+    final ExceptionDelegate systemDelegate = ExceptionDelegate(SetPendingSystemException);
 
-    static ExceptionArgumentDelegate argumentDelegate = new ExceptionArgumentDelegate(SetPendingArgumentException);
-    static ExceptionArgumentDelegate argumentNullDelegate = new ExceptionArgumentDelegate(SetPendingArgumentNullException);
-    static ExceptionArgumentDelegate argumentOutOfRangeDelegate = new ExceptionArgumentDelegate(SetPendingArgumentOutOfRangeException);
+    final ExceptionArgumentDelegate argumentDelegate = ExceptionArgumentDelegate(SetPendingArgumentException);
+    final ExceptionArgumentDelegate argumentNullDelegate = ExceptionArgumentDelegate(SetPendingArgumentNullException);
+    final ExceptionArgumentDelegate argumentOutOfRangeDelegate = ExceptionArgumentDelegate(SetPendingArgumentOutOfRangeException);
 
     [global::System.Runtime.InteropServices.DllImport("$dllimport", EntryPoint="SWIGRegisterExceptionCallbacks_$module")]
     public static extern void SWIGRegisterExceptionCallbacks_$module(

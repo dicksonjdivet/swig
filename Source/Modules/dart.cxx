@@ -301,7 +301,7 @@ public:
     // Add a symbol to the parser for conditional compilation
     Preprocessor_define("SWIGCSHARP 1", 0);
 
-	SWIG_config_file("csharp.swg");
+    SWIG_config_file("dart.swg");
 
     allow_overloading();
     Swig_interface_feature_enable();
@@ -388,7 +388,7 @@ public:
 
     // Make the intermediary class and module class names. The intermediary class name can be set in the module directive.
     if (!imclass_name) {
-      imclass_name = NewStringf("%sPINVOKE", Getattr(n, "name"));
+	  imclass_name = NewStringf("%sFFI", Getattr(n, "name"));
       module_class_name = Copy(Getattr(n, "name"));
     } else {
       // Rename the module name if it is the same as intermediary class name - a backwards compatibility solution
@@ -711,7 +711,7 @@ public:
       }
       return f_single_out;
     } else {
-      String *filen = NewStringf("%s%s.cs", dir, name);
+	  String *filen = NewStringf("%s%s.dart", dir, name);
       File *f = NewFile(filen, "w", SWIG_output_files());
       if (!f) {
 	FileErrorDisplay(filen);

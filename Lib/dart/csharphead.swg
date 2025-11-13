@@ -11,6 +11,38 @@
 #include <stdio.h>
 %}
 
+%pragma(csharp) imclassimports=%{
+import 'dart:ffi' as ffi;
+import 'dart:io' show Platform;
+%}
+
+%pragma(csharp) imclasscode=%{
+  late final ffi.DynamicLibrary _library;
+  $imclassname._()
+  {
+    var platformPrefixes = {
+      'windows': '',
+      'linux': 'lib',
+      'macos': 'lib',
+      'android': 'lib',
+      'ios': 'lib'
+    };
+
+    var platformSuffixes = {
+      'windows': '.dll',
+      'linux': '.so',
+      'macos': '.dylib',
+      'android': '.so',
+      'ios': '.dylib'
+    };
+
+    var libraryName = platformPrefixes[Platform.operatingSystem]!
+      + "$dllimport" + platformSuffixes[Platform.operatingSystem]!;
+
+    _library = ffi.DynamicLibrary.open(libraryName);
+  }
+%}
+
 #if !defined(SWIG_CSHARP_NO_EXCEPTION_HELPER)
 %insert(runtime) %{
 /* Support for throwing C# exceptions from C/C++. There are two types: 
@@ -126,28 +158,28 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
   SWIG_csharp_exceptions_argument[SWIG_CSharpArgumentOutOfRangeException].callback = argumentOutOfRangeCallback;
 }
 %}
-
+/*
 %pragma(csharp) imclasscode=%{
   protected class SWIGExceptionHelper {
 
-    public delegate void ExceptionDelegate(string message);
-    public delegate void ExceptionArgumentDelegate(string message, string paramName);
+    typedef ExceptionDelegate = Void Function(Pointer<Utf8> message);
+    typedef ExceptionArgumentDelegate = Void Function(Pointer<Utf8> message, Pointer<Utf8> paramName);
 
-    static ExceptionDelegate applicationDelegate = new ExceptionDelegate(SetPendingApplicationException);
-    static ExceptionDelegate arithmeticDelegate = new ExceptionDelegate(SetPendingArithmeticException);
-    static ExceptionDelegate divideByZeroDelegate = new ExceptionDelegate(SetPendingDivideByZeroException);
-    static ExceptionDelegate indexOutOfRangeDelegate = new ExceptionDelegate(SetPendingIndexOutOfRangeException);
-    static ExceptionDelegate invalidCastDelegate = new ExceptionDelegate(SetPendingInvalidCastException);
-    static ExceptionDelegate invalidOperationDelegate = new ExceptionDelegate(SetPendingInvalidOperationException);
-    static ExceptionDelegate ioDelegate = new ExceptionDelegate(SetPendingIOException);
-    static ExceptionDelegate nullReferenceDelegate = new ExceptionDelegate(SetPendingNullReferenceException);
-    static ExceptionDelegate outOfMemoryDelegate = new ExceptionDelegate(SetPendingOutOfMemoryException);
-    static ExceptionDelegate overflowDelegate = new ExceptionDelegate(SetPendingOverflowException);
-    static ExceptionDelegate systemDelegate = new ExceptionDelegate(SetPendingSystemException);
+    final ExceptionDelegate applicationDelegate = ExceptionDelegate(SetPendingApplicationException);
+    final ExceptionDelegate arithmeticDelegate = ExceptionDelegate(SetPendingArithmeticException);
+    final ExceptionDelegate divideByZeroDelegate = ExceptionDelegate(SetPendingDivideByZeroException);
+    final ExceptionDelegate indexOutOfRangeDelegate = ExceptionDelegate(SetPendingIndexOutOfRangeException);
+    final ExceptionDelegate invalidCastDelegate = ExceptionDelegate(SetPendingInvalidCastException);
+    final ExceptionDelegate invalidOperationDelegate = ExceptionDelegate(SetPendingInvalidOperationException);
+    final ExceptionDelegate ioDelegate = ExceptionDelegate(SetPendingIOException);
+    final ExceptionDelegate nullReferenceDelegate = ExceptionDelegate(SetPendingNullReferenceException);
+    final ExceptionDelegate outOfMemoryDelegate = ExceptionDelegate(SetPendingOutOfMemoryException);
+    final ExceptionDelegate overflowDelegate = ExceptionDelegate(SetPendingOverflowException);
+    final ExceptionDelegate systemDelegate = ExceptionDelegate(SetPendingSystemException);
 
-    static ExceptionArgumentDelegate argumentDelegate = new ExceptionArgumentDelegate(SetPendingArgumentException);
-    static ExceptionArgumentDelegate argumentNullDelegate = new ExceptionArgumentDelegate(SetPendingArgumentNullException);
-    static ExceptionArgumentDelegate argumentOutOfRangeDelegate = new ExceptionArgumentDelegate(SetPendingArgumentOutOfRangeException);
+    final ExceptionArgumentDelegate argumentDelegate = ExceptionArgumentDelegate(SetPendingArgumentException);
+    final ExceptionArgumentDelegate argumentNullDelegate = ExceptionArgumentDelegate(SetPendingArgumentNullException);
+    final ExceptionArgumentDelegate argumentOutOfRangeDelegate = ExceptionArgumentDelegate(SetPendingArgumentOutOfRangeException);
 
     [global::System.Runtime.InteropServices.DllImport("$dllimport", EntryPoint="SWIGRegisterExceptionCallbacks_$module")]
     public static extern void SWIGRegisterExceptionCallbacks_$module(
@@ -284,6 +316,7 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
     }
   }
 %}
+*/
 #endif // SWIG_CSHARP_NO_EXCEPTION_HELPER
 
 #if !defined(SWIG_CSHARP_NO_STRING_HELPER)
@@ -293,6 +326,7 @@ typedef char * (SWIGSTDCALL* SWIG_CSharpStringHelperCallback)(const char *);
 static SWIG_CSharpStringHelperCallback SWIG_csharp_string_callback = NULL;
 %}
 
+/*
 %pragma(csharp) imclasscode=%{
   protected class SWIGStringHelper {
 
@@ -313,6 +347,7 @@ static SWIG_CSharpStringHelperCallback SWIG_csharp_string_callback = NULL;
 
   static protected SWIGStringHelper swigStringHelper = new SWIGStringHelper();
 %}
+*/
 
 %insert(runtime) %{
 #ifdef __cplusplus
@@ -325,6 +360,7 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterStringCallback_$module(SWIG_CSharpString
 #endif // SWIG_CSHARP_NO_STRING_HELPER
 
 #if !defined(SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER)
+/*
 %pragma(csharp) imclasscode=%{
   public class SWIGStringWithLengthHelper {
 
@@ -356,15 +392,17 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterStringCallback_$module(SWIG_CSharpString
       return null;
     }
   }
-%}
+%}*/
 #endif // SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER
 
 #if !defined(SWIG_CSHARP_NO_IMCLASS_STATIC_CONSTRUCTOR)
 // Ensure the class is not marked beforefieldinit
+/*
 %pragma(csharp) imclasscode=%{
   static $imclassname() {
   }
 %}
+*/
 #endif
 
 %insert(runtime) %{
