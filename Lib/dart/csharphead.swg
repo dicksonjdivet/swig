@@ -18,8 +18,10 @@ import 'dart:io' show Platform;
 %}
 
 %pragma(csharp) imclasscode=%{
+  static final exampleFFI _instance = $imclassname._internal();
   late final ffi.DynamicLibrary _library;
-  $imclassname()
+
+  $imclassname._internal()
   {
     var platformPrefixes = {
       'windows': '',
@@ -42,6 +44,8 @@ import 'dart:io' show Platform;
 
     _library = ffi.DynamicLibrary.open(libraryName);
   }
+
+  factory $imclassname() => $imclassname._instance;
 %}
 
 #if !defined(SWIG_CSHARP_NO_EXCEPTION_HELPER)
