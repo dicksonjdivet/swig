@@ -14,11 +14,12 @@
 %pragma(csharp) imclassimports=%{
 import 'dart:ffi' as ffi;
 import 'dart:io' show Platform;
+
 %}
 
 %pragma(csharp) imclasscode=%{
   late final ffi.DynamicLibrary _library;
-  $imclassname._()
+  $imclassname()
   {
     var platformPrefixes = {
       'windows': '',

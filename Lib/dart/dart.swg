@@ -90,6 +90,22 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(ctype) double,             const double &             "double"
 %typemap(ctype) void                                           "void"
 
+%typemap(ffitype) bool,               const bool &               "ffi.Bool"
+%typemap(ffitype) char,               const char &               "ffi.Char"
+%typemap(ffitype) signed char,        const signed char &        "ffi.SignedChar"
+%typemap(ffitype) unsigned char,      const unsigned char &      "ffi.UnsignedChar"
+%typemap(ffitype) short,              const short &              "ffi.Short"
+%typemap(ffitype) unsigned short,     const unsigned short &     "ffi.UnsignedShort"
+%typemap(ffitype) int,                const int &                "ffi.Int"
+%typemap(ffitype) unsigned int,       const unsigned int &       "ffi.UnsignedInt"
+%typemap(ffitype) long,               const long &               "ffi.Int"
+%typemap(ffitype) unsigned long,      const unsigned long &      "ffi.UnsignedInt"
+%typemap(ffitype) long long,          const long long &          "ffi.LongLong"
+%typemap(ffitype) unsigned long long, const unsigned long long & "ffi.UnsignedLongLong"
+%typemap(ffitype) float,              const float &              "ffi.Float"
+%typemap(ffitype) double,             const double &             "ffi.Double"
+%typemap(ffitype) void                                           "ffi.Void"
+
 %typemap(imtype) bool,               const bool &               "bool"
 %typemap(imtype) char,               const char &               "char"
 %typemap(imtype) signed char,        const signed char &        "sbyte"
@@ -123,33 +139,40 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(cstype) void                                           "void"
 
 %typemap(ctype) char *, char *&, char[ANY], char[]   "char *"
-%typemap(imtype) char *, char *&, char[ANY], char[]   "string"
-%typemap(cstype) char *, char *&, char[ANY], char[]   "string"
+%typemap(ffitype) char *, char *&, char[ANY], char[]   "ffi.Pointer<ffi.Char>"
+%typemap(imtype) char *, char *&, char[ANY], char[]   "String"
+%typemap(cstype) char *, char *&, char[ANY], char[]   "String"
 
 /* Non primitive types */
 %typemap(ctype) SWIGTYPE "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE "global::System.Runtime.InteropServices.HandleRef"
+%typemap(ffitype) SWIGTYPE "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE "$&csclassname"
 
 %typemap(ctype) SWIGTYPE [] "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE [] "global::System.Runtime.InteropServices.HandleRef"
+%typemap(ffitype) SWIGTYPE [] "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE [] "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE [] "$csclassname"
 
 %typemap(ctype) SWIGTYPE * "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE * "global::System.Runtime.InteropServices.HandleRef"
+%typemap(ffitype) SWIGTYPE * "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE * "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE * "$csclassname"
 
 %typemap(ctype) SWIGTYPE & "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE & "global::System.Runtime.InteropServices.HandleRef"
+%typemap(ffitype) SWIGTYPE & "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE & "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE & "$csclassname"
 
 %typemap(ctype) SWIGTYPE && "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE && "global::System.Runtime.InteropServices.HandleRef"
+%typemap(ffitype) SWIGTYPE && "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE && "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE && "$csclassname"
 
 /* pointer to a class member */
 %typemap(ctype) SWIGTYPE (CLASS::*) "char *"
-%typemap(imtype) SWIGTYPE (CLASS::*) "string"
+%typemap(ffitype) SWIGTYPE (CLASS::*) "ffi.Pointer<ffi.Char>"
+%typemap(imtype) SWIGTYPE (CLASS::*) "String"
 %typemap(cstype) SWIGTYPE (CLASS::*) "$csclassname"
 
 /* The following are the in and out typemaps. These are the PInvoke code generating typemaps for converting from C# to C and visa versa. */

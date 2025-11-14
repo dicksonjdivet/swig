@@ -454,12 +454,12 @@ public:
     Printf(f_runtime, "\n");
     if (namespce) {
       String *wrapper_name = NewStringf("");
-      Printf(wrapper_name, "CSharp_%s_%%f", namespce);
+	  Printf(wrapper_name, "Dart_%s_%%f", namespce);
       Swig_name_register("wrapper", wrapper_name);
       Delete(wrapper_name);
     }
     else {
-      Swig_name_register("wrapper", "CSharp_%f");
+	  Swig_name_register("wrapper", "Dart_%f");
     }
 
     if (old_variable_names) {
@@ -800,12 +800,16 @@ public:
     String *tm;
     Parm *p;
     int i;
+    String *native_typedef = NewString("");
+    String *dart_typedef = NewString("");
     String *c_return_type = NewString("");
     String *im_return_type = NewString("");
+    String *ffi_return_type = NewString("");
     String *cleanup = NewString("");
     String *outarg = NewString("");
     String *body = NewString("");
     String *im_outattributes = 0;
+    String *ffi_outattributes = 0;
     int num_arguments = 0;
     bool is_void_return;
     String *overloaded_name = getOverloadedName(n);
@@ -830,6 +834,7 @@ public:
     /* Attach the non-standard typemaps to the parameter list. */
     Swig_typemap_attach_parms("ctype", l, f);
     Swig_typemap_attach_parms("imtype", l, f);
+	Swig_typemap_attach_parms("ffitype", l, f);
 
     /* Get return types */
     if ((tm = Swig_typemap_lookup("ctype", n, "", 0))) {
@@ -849,6 +854,16 @@ public:
       im_outattributes = Getattr(n, "tmap:imtype:outattributes");
     } else {
       Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(returntype, 0));
+    }
+
+    if ((tm = Swig_typemap_lookup("ffitype", n, "", 0))) {
+      String *ffitypeout = Getattr(n, "tmap:ffitype:out");	// the type in the ffitype typemap's out attribute overrides the type in the typemap
+      if (ffitypeout)
+	tm = ffitypeout;
+      Printf(ffi_return_type, "%s", tm);
+      ffi_outattributes = Getattr(n, "tmap:ffitype:outattributes");
+    } else {
+      Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No ffitype typemap defined for %s\n", SwigType_str(returntype, 0));
     }
 
     is_void_return = Cmp(c_return_type, "void") == 0;
@@ -877,13 +892,17 @@ public:
       }
     }
 
-    Printv(imclass_class_code, "\n  [global::System.Runtime.InteropServices.DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
+  Printf(imclass_class_code, "\n  late final Dart%s %s = _library.lookup<ffi.NativeFunction<Native%s>>('%s').asFunction();\n", overloaded_name, overloaded_name, overloaded_name, wname);
 
-    if (im_outattributes)
-      Printf(imclass_class_code, "  %s\n", im_outattributes);
+	if (ffi_outattributes)
+	  Printf(native_typedef, "%s\n", ffi_outattributes);
 
-    Printf(imclass_class_code, "  public static extern %s %s(", im_return_type, overloaded_name);
+	Printf(native_typedef, "typedef Native%s = %s Function(", overloaded_name, ffi_return_type);
 
+	if (im_outattributes)
+	  Printf(dart_typedef, "%s", im_outattributes);
+
+	Printf(dart_typedef, "typedef Dart%s = %s Function(", overloaded_name, im_return_type);
 
     /* Get number of required and total arguments */
     num_arguments = emit_num_arguments(l);
@@ -900,6 +919,7 @@ public:
       String *ln = Getattr(p, "lname");
       String *im_param_type = NewString("");
       String *c_param_type = NewString("");
+	  String *ffi_param_type = NewString("");
       String *arg = NewString("");
 
       Printf(arg, "j%s", ln);
@@ -919,10 +939,21 @@ public:
 	Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(pt, 0));
       }
 
+            /* Get the intermediary class parameter types of the parameter */
+      if ((tm = Getattr(p, "tmap:ffitype"))) {
+	const String *inattributes = Getattr(p, "tmap:ffitype:inattributes");
+	Printf(ffi_param_type, "%s%s", inattributes ? inattributes : empty_string, tm);
+      } else {
+	Swig_warning(WARN_CSHARP_TYPEMAP_CSTYPE_UNDEF, input_file, line_number, "No ffitype typemap defined for %s\n", SwigType_str(pt, 0));
+      }
+
       /* Add parameter to intermediary class method */
-      if (gencomma)
-	Printf(imclass_class_code, ", ");
-      Printf(imclass_class_code, "%s %s", im_param_type, arg);
+      if (gencomma){
+        Printf(dart_typedef, ", ");
+        Printf(native_typedef, ", ");
+      }
+      Printf(dart_typedef, "%s %s", im_param_type, arg);
+      Printf(native_typedef, "%s %s", ffi_param_type,  arg);
 
       // Add parameter to C function
       Printv(f->def, gencomma ? ", " : "", c_param_type, " ", arg, NIL);
@@ -943,6 +974,7 @@ public:
       }
       Delete(im_param_type);
       Delete(c_param_type);
+	  Delete(ffi_param_type);
       Delete(arg);
     }
 
@@ -1047,8 +1079,13 @@ public:
     }
 
     /* Finish C function and intermediary class function definitions */
-    Printf(imclass_class_code, ")");
-    Printf(imclass_class_code, ";\n");
+    Printf(native_typedef, ")");
+    Printf(native_typedef, ";\n");
+
+    Printf(dart_typedef, ")");;
+    Printf(dart_typedef, ";\n");
+
+	Printf(imclass_imports, "%s%s\n", native_typedef, dart_typedef);
 
     Printf(f->def, ") {");
 
@@ -1124,6 +1161,9 @@ public:
       Delete(getter_setter_name);
     }
 
+    Delete(native_typedef);
+    Delete(dart_typedef);
+    Delete(ffi_return_type);
     Delete(c_return_type);
     Delete(im_return_type);
     Delete(cleanup);
@@ -1826,8 +1866,8 @@ public:
   void upcastsCode(SwigType *smart, SwigType *bsmart, String *upcast_method_name, SwigType *c_classname, SwigType *c_baseclassname) {
     String *wname = Swig_name_wrapper(upcast_method_name);
 
-    Printv(imclass_cppcasts_code, "\n  [global::System.Runtime.InteropServices.DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
-    Printf(imclass_cppcasts_code, "  public static extern global::System.IntPtr %s(global::System.IntPtr jarg1);\n", upcast_method_name);
+	Printf(imclass_imports, "typedef Native%s = ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void> jarg1);\n", upcast_method_name);
+	Printf(imclass_imports, "typedef Dart%s = ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void> jarg1);\n\n", upcast_method_name);
 
     Replaceall(imclass_cppcasts_code, "$csclassname", proxy_class_name);
 
@@ -3924,8 +3964,8 @@ public:
     if (nspace)
       Insert(qualified_classname, 0, NewStringf("%s.", nspace));
 
-    Printv(imclass_class_code, "\n  [global::System.Runtime.InteropServices.DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
-    Printf(imclass_class_code, "  public static extern void %s(global::System.Runtime.InteropServices.HandleRef jarg1", swig_director_connect);
+	//Printv(imclass_class_code, "\n  [global::System.Runtime.InteropServices.DllImport(\"", dllimport, "\", EntryPoint=\"", wname, "\")]\n", NIL);
+	//Printf(imclass_class_code, "  public static extern void %s(global::System.Runtime.InteropServices.HandleRef jarg1", swig_director_connect);
 
     Wrapper *code_wrap = NewWrapper();
     Printf(code_wrap->def, "SWIGEXPORT void SWIGSTDCALL %s(void *objarg", wname);
