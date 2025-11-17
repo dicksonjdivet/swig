@@ -103,8 +103,8 @@ public:
    * ----------------------------------------------------------------------------- */
 
    DART():empty_string(NewString("")),
-      public_string(NewString("public")),
-      protected_string(NewString("protected")),
+      public_string(NewString("")),
+      protected_string(NewString("")),
       swig_types_hash(NULL),
       f_begin(NULL),
       f_runtime(NULL),
@@ -1869,6 +1869,13 @@ public:
 	Printf(imclass_imports, "typedef Native%s = ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void> jarg1);\n", upcast_method_name);
 	Printf(imclass_imports, "typedef Dart%s = ffi.Pointer<ffi.Void> Function(ffi.Pointer<ffi.Void> jarg1);\n\n", upcast_method_name);
 
+    Printf(imclass_cppcasts_code, "\n  late final Dart%s %s = _library.lookup<ffi.NativeFunction<Native%s>>('Dart_%s').asFunction<Dart%s>();\n"
+      , upcast_method_name
+      , upcast_method_name
+      , upcast_method_name
+      , upcast_method_name
+      , upcast_method_name);
+
     Replaceall(imclass_cppcasts_code, "$csclassname", proxy_class_name);
 
     if (smart) {
@@ -1976,9 +1983,23 @@ public:
       Append(interface_list, ", ");
     Append(interface_list, pure_interfaces);
     // Start writing the proxy class
-    if (!has_outerclass)
-      Printv(proxy_class_def, typemapLookup(n, "csimports", typemap_lookup_type, WARN_NONE),	// Import statements
-	   "\n", NIL);
+    if (!has_outerclass) {
+      String *csimports = Copy(typemapLookup(n, "csimports", typemap_lookup_type, WARN_NONE));
+      
+      // Generate base class imports
+      String *base_imports = NewString("");
+      if (baseclass) {
+        Printf(base_imports, "\nimport '%s.dart';", baseclass);
+      }
+      
+      // Replace $csimportsbase placeholder with actual base class imports
+      Replaceall(csimports, "$csimportsbase", base_imports);
+      
+      Printv(proxy_class_def, csimports, "\n", NIL);
+      
+      Delete(base_imports);
+      Delete(csimports);
+    }
 
     // Class attributes
     const String *csattributes = typemapLookup(n, "csattributes", typemap_lookup_type, WARN_NONE);
@@ -1987,7 +2008,7 @@ public:
 
     Printv(proxy_class_def, typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers
 	   " $csclassname",	// Class name and base class
-	   (*Char(wanted_base) || *Char(interface_list)) ? " : " : "", wanted_base, (*Char(wanted_base) && *Char(interface_list)) ?	// Interfaces
+	   (*Char(wanted_base) || *Char(interface_list)) ? " extends " : "", wanted_base, (*Char(wanted_base) && *Char(interface_list)) ?	// Interfaces
 	   ", " : "", interface_list, " {", derived ? typemapLookup(n, "csbody_derived", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF) :	// main body of class
 	   typemapLookup(n, "csbody", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CSBODY_UNDEF),	// main body of class
 	   NIL);
@@ -2053,8 +2074,8 @@ public:
 	if (methodmods)
 	  Printv(proxy_class_def, methodmods, NIL);
 	else
-	  Printv(proxy_class_def, destruct_methodmodifiers, " ", derived ? "override" : "virtual", NIL);
-	Printv(proxy_class_def, " void ", destruct_methodname, "(", destruct_parameters, ") ", destruct, "\n", NIL);
+	  Printv(proxy_class_def, destruct_methodmodifiers, NIL);
+	Printv(proxy_class_def, "void ", destruct_methodname, "(", destruct_parameters, ") ", destruct, "\n", NIL);
       }
     }
     if (*Char(interface_upcasts))
@@ -2581,9 +2602,9 @@ public:
       if (!is_smart_pointer()) {
 	// Smart pointer classes do not mirror the inheritance hierarchy of the underlying pointer type, so no virtual/override/new required.
 	if (Getattr(n, "override"))
-	    Printf(function_code, "override ");
+	    Printf(function_code, "");
 	else if (checkAttribute(n, "storage", "virtual"))
-	  Printf(function_code, "virtual ");
+	  Printf(function_code, " ");
 	if (Getattr(n, "hides"))
 	  Printf(function_code, "new ");
       }
@@ -2594,9 +2615,9 @@ public:
     if (is_interface)
       Printf(interface_class_code, "  %s %s(", return_type, proxy_function_name);
 
-    Printv(imcall, full_imclass_name, ".$imfuncname(", NIL);
+    Printv(imcall, full_imclass_name, "().$imfuncname(", NIL);
     if (!static_flag)
-      Printf(imcall, "swigCPtr");
+      Printf(imcall, "_swigCPtr");
 
     emit_mark_varargs(l);
     int gencomma = !static_flag;
@@ -2813,8 +2834,11 @@ public:
 	if ((tm = Swig_typemap_lookup("csvarin", variable_parm, "", 0))) {
 	  substituteClassname(cvariable_type, tm);
 	  Replaceall(tm, "$csinput", "value");
-          Replaceall(tm, "$imfuncname", intermediary_function_name);
+    Replaceall(tm, "$imfuncname", intermediary_function_name);
 	  Replaceall(tm, "$imcall", imcall);
+    Replaceall(tm, "$varname", variable_name);
+    Replaceall(tm, "$paramtype", cvariable_type);
+
 	  excodeSubstitute(n, tm, "csvarin", variable_parm);
 	  Printf(proxy_class_code, "%s", tm);
 	} else {
@@ -2828,8 +2852,10 @@ public:
 	  else
 	    Replaceall(tm, "$owner", "false");
 	  substituteClassname(t, tm);
-          Replaceall(tm, "$imfuncname", intermediary_function_name);
+    Replaceall(tm, "$imfuncname", intermediary_function_name);
 	  Replaceall(tm, "$imcall", imcall);
+    Replaceall(tm, "$varname", variable_name);
+    Replaceall(tm, "$returntype", t);
 	  excodeSubstitute(n, tm, "csvarout", n);
 	  Printf(proxy_class_code, "%s", tm);
 	} else {
@@ -2902,7 +2928,7 @@ public:
       Printf(function_code, "  %s %s(", methodmods, proxy_class_name);
       Printf(helper_code, "  static private %s SwigConstruct%s(", im_return_type, proxy_class_name);
 
-      Printv(imcall, full_imclass_name, ".", mangled_overname, "(", NIL);
+      Printv(imcall, full_imclass_name, "().", mangled_overname, "(", NIL);
 
       /* Attach the non-standard typemaps to the parameter list */
       Swig_typemap_attach_parms("in", l, NULL);
@@ -3092,7 +3118,7 @@ public:
     String *symname = Getattr(n, "sym:name");
 
     if (proxy_flag) {
-      Printv(destructor_call, full_imclass_name, ".", Swig_name_destroy(getNSpace(), symname), "(swigCPtr)", NIL);
+      Printv(destructor_call, full_imclass_name, "().", Swig_name_destroy(getNSpace(), symname), "(_swigCPtr)", NIL);
       const String *methodmods = Getattr(n, "feature:cs:methodmodifiers");
       if (methodmods)
 	Setattr(getCurrentClass(), "destructmethodmodifiers", methodmods);
@@ -3107,7 +3133,7 @@ public:
 
   virtual int membervariableHandler(Node *n) {
 
-    generate_property_declaration_flag = true;
+    generate_property_declaration_flag = false;
     variable_name = Getattr(n, "sym:name");
     wrapping_member_flag = true;
     variable_wrapper_flag = true;
@@ -3117,7 +3143,7 @@ public:
     generate_property_declaration_flag = false;
 
     // End property declaration
-    Printf(proxy_class_code, "\n  }\n\n");
+    Printf(proxy_class_code, "\n  \n\n");
 
     return SWIG_OK;
   }
@@ -3128,7 +3154,7 @@ public:
 
   virtual int staticmembervariableHandler(Node *n) {
 
-    generate_property_declaration_flag = true;
+    generate_property_declaration_flag = false;
     variable_name = Getattr(n, "sym:name");
     wrapping_member_flag = true;
     static_flag = true;
@@ -3139,7 +3165,7 @@ public:
 
     if (!GetFlag(n, "wrappedasconstant")) {
       // End property declaration
-      Printf(proxy_class_code, "\n  }\n\n");
+      Printf(proxy_class_code, "\n  \n\n");
     }
 
     return SWIG_OK;
@@ -3227,9 +3253,9 @@ public:
       func_name = NewString("");
       setter_flag = (Cmp(Getattr(n, "sym:name"), Swig_name_set(getNSpace(), variable_name)) == 0);
       if (setter_flag)
-	Printf(func_name, "set");
+        Printf(func_name, "set");
       else
-	Printf(func_name, "get");
+        Printf(func_name, "get");
       Putc(toupper((int) *Char(variable_name)), func_name);
       Printf(func_name, "%s", Char(variable_name) + 1);
       if (setter_flag)
