@@ -112,18 +112,18 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(ffitype) void                                           "ffi.Void"
 
 %typemap(imtype) bool,               const bool &               "bool"
-%typemap(imtype) char,               const char &               "char"
-%typemap(imtype) signed char,        const signed char &        "sbyte"
-%typemap(imtype) unsigned char,      const unsigned char &      "byte"
-%typemap(imtype) short,              const short &              "short"
-%typemap(imtype) unsigned short,     const unsigned short &     "ushort"
+%typemap(imtype) char,               const char &               "int"
+%typemap(imtype) signed char,        const signed char &        "int"
+%typemap(imtype) unsigned char,      const unsigned char &      "int"
+%typemap(imtype) short,              const short &              "int"
+%typemap(imtype) unsigned short,     const unsigned short &     "int"
 %typemap(imtype) int,                const int &                "int"
-%typemap(imtype) unsigned int,       const unsigned int &       "uint"
+%typemap(imtype) unsigned int,       const unsigned int &       "int"
 %typemap(imtype) long,               const long &               "int"
-%typemap(imtype) unsigned long,      const unsigned long &      "uint"
-%typemap(imtype) long long,          const long long &          "long"
-%typemap(imtype) unsigned long long, const unsigned long long & "ulong"
-%typemap(imtype) float,              const float &              "float"
+%typemap(imtype) unsigned long,      const unsigned long &      "int"
+%typemap(imtype) long long,          const long long &          "int"
+%typemap(imtype) unsigned long long, const unsigned long long & "int"
+%typemap(imtype) float,              const float &              "double"
 %typemap(imtype) double,             const double &             "double"
 %typemap(imtype) void                                           "void"
 
@@ -652,8 +652,8 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
  * method can throw any exceptions from unmanaged code, otherwise replaced by nothing. */
 
 // Macro used by the $excode special variable
-%define SWIGEXCODE "\n    if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();" %enddef
-%define SWIGEXCODE2 "\n      if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();" %enddef
+%define SWIGEXCODE "\n    /*if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();*/" %enddef
+%define SWIGEXCODE2 "\n      /*if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();*/" %enddef
 
 %typemap(csout, excode=SWIGEXCODE) bool,               const bool &               {
     bool ret = $imcall;$excode
@@ -719,25 +719,25 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     $imcall;$excode
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE {
-    $&csclassname ret = new $&csclassname($imcall, true);$excode
+    $&csclassname ret = new $&csclassname.internal($imcall, true);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE & {
-    $csclassname ret = new $csclassname($imcall, $owner);$excode
+    $csclassname ret = new $csclassname.internal($imcall, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE && {
-    $csclassname ret = new $csclassname($imcall, $owner);$excode
+    $csclassname ret = new $csclassname.internal($imcall, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *, SWIGTYPE [] {
-    global::System.IntPtr cPtr = $imcall;
-    $csclassname ret = (cPtr == global::System.IntPtr.Zero) ? null : new $csclassname(cPtr, $owner);$excode
+    ffi.Pointer<ffi.Void> cPtr = $imcall;
+    $csclassname ret = (cPtr == ffi.Pointer<ffi.Void>.fromAddress(0)) ? null : new $csclassname.internal(cPtr, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*) {
     string cMemberPtr = $imcall;
-    $csclassname ret = (cMemberPtr == null) ? null : new $csclassname(cMemberPtr, $owner);$excode
+    $csclassname ret = (cMemberPtr == null) ? null : new $csclassname.internal(cMemberPtr, $owner);$excode
     return ret;
   }
 
@@ -1081,7 +1081,7 @@ SWIG_CSBODY_TYPEWRAPPER(internal, protected, internal, SWIGTYPE)
 #define %proxycode                  %insert("proxycode")
 
 %pragma(csharp) imclassclassmodifiers="class"
-%pragma(csharp) moduleclassmodifiers="public class"
+%pragma(csharp) moduleclassmodifiers="class"
 
 /* 64-bit architecture specific typemaps */
 #if defined(SWIGWORDSIZE64)

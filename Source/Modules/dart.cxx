@@ -523,6 +523,29 @@ public:
       if (module_imports)
 	Printf(f_module, "%s\n", module_imports);
 
+        // Auto-generate imports for all generated proxy classes
+      Printf(f_module, "import '%sFFI.dart';\n", module_class_name);
+      Printf(f_module, "import 'dart:ffi' as ffi;\n");
+      for (Iterator it = First(filenames_list); it.item; it = Next(it)) {
+        String *filename = it.item;
+        // Extract class name from filename (remove .dart extension)
+        String *class_name = Copy(filename);
+        // Remove path
+        // Do not use LastIndex it does not exist
+        char *last_slash = strrchr(Char(class_name), '/');
+        if (last_slash) {
+          String *just_name = NewString(last_slash + 1);
+          Delete(class_name);
+          class_name = just_name;
+        }
+        Replaceall(class_name, ".dart", "");
+        // Skip the main module file and FFI file
+        if (Strcmp(class_name, module_class_name) != 0 && !Strstr(class_name, "FFI")) {
+          Printf(f_module, "import '%s.dart';\n", class_name);
+        }
+        Delete(class_name);
+      }
+
       if (Len(module_class_modifiers) > 0)
 	Printf(f_module, "%s ", module_class_modifiers);
       Printf(f_module, "%s ", module_class_name);
@@ -2834,10 +2857,10 @@ public:
 	if ((tm = Swig_typemap_lookup("csvarin", variable_parm, "", 0))) {
 	  substituteClassname(cvariable_type, tm);
 	  Replaceall(tm, "$csinput", "value");
-    Replaceall(tm, "$imfuncname", intermediary_function_name);
+          Replaceall(tm, "$imfuncname", intermediary_function_name);
 	  Replaceall(tm, "$imcall", imcall);
-    Replaceall(tm, "$varname", variable_name);
-    Replaceall(tm, "$paramtype", cvariable_type);
+          Replaceall(tm, "$varname", variable_name);
+          Replaceall(tm, "$paramtype", cvariable_type);
 
 	  excodeSubstitute(n, tm, "csvarin", variable_parm);
 	  Printf(proxy_class_code, "%s", tm);
@@ -2852,10 +2875,10 @@ public:
 	  else
 	    Replaceall(tm, "$owner", "false");
 	  substituteClassname(t, tm);
-    Replaceall(tm, "$imfuncname", intermediary_function_name);
-	  Replaceall(tm, "$imcall", imcall);
-    Replaceall(tm, "$varname", variable_name);
-    Replaceall(tm, "$returntype", t);
+          Replaceall(tm, "$imfuncname", intermediary_function_name);
+          Replaceall(tm, "$imcall", imcall);
+          Replaceall(tm, "$varname", variable_name);
+          Replaceall(tm, "$returntype", t);
 	  excodeSubstitute(n, tm, "csvarout", n);
 	  Printf(proxy_class_code, "%s", tm);
 	} else {
@@ -3282,7 +3305,7 @@ public:
     }
 
     Printf(function_code, "  %s static %s %s(", methodmods, return_type, func_name);
-    Printv(imcall, imclass_name, ".", overloaded_name, "(", NIL);
+    Printv(imcall, imclass_name, "().", overloaded_name, "(", NIL);
 
     /* Get number of required and total arguments */
     num_arguments = emit_num_arguments(l);
