@@ -18,7 +18,7 @@ import 'dart:io' show Platform;
 %}
 
 %pragma(csharp) imclasscode=%{
-  static final exampleFFI _instance = $imclassname._internal();
+  static final $imclassname _instance = $imclassname._internal();
   late final ffi.DynamicLibrary _library;
 
   $imclassname._internal()

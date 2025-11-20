@@ -1318,8 +1318,16 @@ public:
 	  Printf(enum_code, "%s\n", csattributes);
 
 	// Emit the enum
+	String *enum_name = symname;
+	if (proxy_flag && is_wrapping_class() && proxy_class_name) {
+	  // Prefix enum name with class name when enum is declared within a class
+	  enum_name = NewStringf("%s%s", proxy_class_name, symname);
+	}
 	Printv(enum_code, typemapLookup(n, "csclassmodifiers", typemap_lookup_type, WARN_CSHARP_TYPEMAP_CLASSMOD_UNDEF),	// Class modifiers (enum modifiers really)
-	       " ", symname, *Char(wanted_base) ? " : " : "", wanted_base, " {\n", NIL);
+	       " ", enum_name, *Char(wanted_base) ? " : " : "", wanted_base, " {\n", NIL);
+	if (enum_name != symname) {
+	  Delete(enum_name);
+	}
 	Delete(scope);
       } else {
 	// Wrap C++ enum with integers - just indicate start of enum with a comment, no comment for anonymous enums of any sort
@@ -1358,7 +1366,15 @@ public:
 	       typemapLookup(n, "cscode", typemap_lookup_type, WARN_NONE),	// extra C# code
 	       "}", NIL);
 
-	Replaceall(enum_code, "$csclassname", symname);
+	// Use prefixed enum name for class-scope enums
+	String *final_enum_name = symname;
+	if (proxy_flag && is_wrapping_class() && proxy_class_name) {
+	  final_enum_name = NewStringf("%s%s", proxy_class_name, symname);
+	}
+	Replaceall(enum_code, "$csclassname", final_enum_name);
+	if (final_enum_name != symname) {
+	  Delete(final_enum_name);
+	}
 
 	// Substitute $enumvalues - intended usage is for typesafe enums
 	if (Getattr(n, "enumvalues"))
@@ -1366,7 +1382,7 @@ public:
 	else
 	  Replaceall(enum_code, "$enumvalues", "");
 
-	if (proxy_flag && is_wrapping_class()) {
+	/*if (proxy_flag && is_wrapping_class()) {
 	  // Enums defined within the C++ class are defined within the proxy class
 
 	  // Add extra indentation
@@ -1374,10 +1390,17 @@ public:
 	  Replaceall(enum_code, "  \n", "\n");
 
 	  Printv(proxy_class_constants_code, "  ", enum_code, "\n\n", NIL);
-	} else {
+	} else {*/
 	  // Global enums are defined in their own file
 	  String *output_directory = outputDirectory(nspace);
-	  File *f_enum = getOutputFile(output_directory, symname);
+	  String *file_enum_name = symname;
+	  if (proxy_flag && is_wrapping_class() && proxy_class_name) {
+	    file_enum_name = NewStringf("%s%s", proxy_class_name, symname);
+	  }
+	  File *f_enum = getOutputFile(output_directory, file_enum_name);
+	  if (file_enum_name != symname) {
+	    Delete(file_enum_name);
+	  }
 
 	  addOpenNamespace(nspace, f_enum);
 
@@ -1389,7 +1412,7 @@ public:
 	    Delete(f_enum);
 	  f_enum = NULL;
 	  Delete(output_directory);
-	}
+	//}
       } else {
 	// Wrap C++ enum with simple constant
 	Printf(enum_code, "\n");
@@ -3594,7 +3617,7 @@ public:
 	    proxyname = getProxyName(scopename_prefix);
 	  }
 	  if (proxyname) {
-	    enumname = NewStringf("%s.%s", proxyname, symname);
+	    enumname = NewStringf("%s%s", proxyname, symname);
 	  } else {
 	    // global enum or enum in a namespace
 	    String *nspace = Getattr(n, "sym:nspace");
@@ -4979,11 +5002,11 @@ public:
  * swig_csharp()    - Instantiate module
  * ----------------------------------------------------------------------------- */
 
-static Language *new_swig_csharp() {
+static Language *new_swig_dart() {
   return new DART();
 }
 extern "C" Language *swig_dart(void) {
-  return new_swig_csharp();
+  return new_swig_dart();
 }
 
 /* -----------------------------------------------------------------------------

@@ -10,6 +10,7 @@
 // const enum SWIGTYPE & typemaps
 %typemap(ctype) const enum SWIGTYPE & "int"
 %typemap(imtype) const enum SWIGTYPE & "int"
+%typemap(ffitype) const enum SWIGTYPE & "ffi.Int"
 %typemap(cstype) const enum SWIGTYPE & "int"
 
 %typemap(in) const enum SWIGTYPE & ($*1_ltype temp)
@@ -47,6 +48,7 @@
 // enum SWIGTYPE typemaps
 %typemap(ctype) enum SWIGTYPE "int"
 %typemap(imtype) enum SWIGTYPE "int"
+%typemap(ffitype) enum SWIGTYPE "ffi.Int"
 %typemap(cstype) enum SWIGTYPE "int"
 
 %typemap(in) enum SWIGTYPE %{ $1 = ($1_ltype)$input; %}

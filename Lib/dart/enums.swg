@@ -8,6 +8,7 @@
 // const enum SWIGTYPE & typemaps
 %typemap(ctype) const enum SWIGTYPE & "int"
 %typemap(imtype) const enum SWIGTYPE & "int"
+%typemap(ffitype) const enum SWIGTYPE & "ffi.Int"
 %typemap(cstype) const enum SWIGTYPE & "$*csclassname"
 
 %typemap(in) const enum SWIGTYPE & ($*1_ltype temp)
@@ -19,8 +20,8 @@
 %{ static $*1_ltype temp = ($*1_ltype)$input; 
    $result = &temp; %}
 %typemap(directorin) const enum SWIGTYPE & "$input = (int)$1;"
-%typemap(csdirectorin) const enum SWIGTYPE & "($*csclassname)$iminput"
-%typemap(csdirectorout) const enum SWIGTYPE & "(int)$cscall"
+%typemap(csdirectorin) const enum SWIGTYPE & "$*csclassname.values[$iminput]"
+%typemap(csdirectorout) const enum SWIGTYPE & "$cscall.index"
 
 %typecheck(SWIG_TYPECHECK_POINTER) const enum SWIGTYPE & ""
 
@@ -29,15 +30,15 @@
    SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, "C++ $1_type exception thrown");
    return $null; %}
 
-%typemap(csin) const enum SWIGTYPE & "(int)$csinput"
+%typemap(csin) const enum SWIGTYPE & "$csinput.index"
 %typemap(csout, excode=SWIGEXCODE) const enum SWIGTYPE & {
-    $*csclassname ret = ($*csclassname)$imcall;$excode
+    $*csclassname ret = $*csclassname.values[$imcall];$excode
     return ret;
   }
 
 %typemap(csvarout, excode=SWIGEXCODE2) const enum SWIGTYPE & %{
     get {
-      $*csclassname ret = ($*csclassname)$imcall;$excode
+      $*csclassname ret = $*csclassname.values[$imcall];$excode
       return ret;
     } %}
 
@@ -45,6 +46,7 @@
 // enum SWIGTYPE typemaps
 %typemap(ctype) enum SWIGTYPE "int"
 %typemap(imtype) enum SWIGTYPE "int"
+%typemap(ffitype) enum SWIGTYPE "ffi.Int"
 %typemap(cstype) enum SWIGTYPE "$csclassname"
 
 %typemap(in) enum SWIGTYPE %{ $1 = ($1_ltype)$input; %}
@@ -52,8 +54,8 @@
 
 %typemap(directorout) enum SWIGTYPE  %{ $result = ($1_ltype)$input; %}
 %typemap(directorin) enum SWIGTYPE "$input = (int)$1;"
-%typemap(csdirectorin) enum SWIGTYPE "($csclassname)$iminput"
-%typemap(csdirectorout) enum SWIGTYPE "(int)$cscall"
+%typemap(csdirectorin) enum SWIGTYPE "$csclassname.values[$iminput]"
+%typemap(csdirectorout) enum SWIGTYPE "$cscall.index"
 
 %typecheck(SWIG_TYPECHECK_POINTER) enum SWIGTYPE ""
 
@@ -62,20 +64,20 @@
    SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, "C++ $1_type exception thrown");
    return $null; %}
 
-%typemap(csin) enum SWIGTYPE "(int)$csinput"
+%typemap(csin) enum SWIGTYPE "$csinput.index"
 %typemap(csout, excode=SWIGEXCODE) enum SWIGTYPE {
-    $csclassname ret = ($csclassname)$imcall;$excode
+    $csclassname ret = $csclassname.values[$imcall];$excode
     return ret;
   }
 
 %typemap(csvarout, excode=SWIGEXCODE2) enum SWIGTYPE %{
-    get {
-      $csclassname ret = ($csclassname)$imcall;$excode
+    $returntype get $varname {
+      $csclassname ret = $csclassname.values[$imcall];$excode
       return ret;
     } %}
 
 %typemap(csbase)           enum SWIGTYPE ""
-%typemap(csclassmodifiers) enum SWIGTYPE "public enum"
+%typemap(csclassmodifiers) enum SWIGTYPE "enum"
 %typemap(cscode)           enum SWIGTYPE ""
 %typemap(csimports)        enum SWIGTYPE ""
 %typemap(csinterfaces)     enum SWIGTYPE ""
