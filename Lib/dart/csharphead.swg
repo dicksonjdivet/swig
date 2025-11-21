@@ -12,8 +12,7 @@
 %}
 
 %pragma(csharp) imclassimports=%{
-import 'dart:ffi' as ffi;
-import 'dart:io' show Platform;
+part of $module;
 
 %}
 

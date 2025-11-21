@@ -388,7 +388,7 @@ public:
 
     // Make the intermediary class and module class names. The intermediary class name can be set in the module directive.
     if (!imclass_name) {
-	  imclass_name = NewStringf("%sFFI", Getattr(n, "name"));
+      imclass_name = NewStringf("%sFFI", Getattr(n, "name"));
       module_class_name = Copy(Getattr(n, "name"));
     } else {
       // Rename the module name if it is the same as intermediary class name - a backwards compatibility solution
@@ -485,6 +485,7 @@ public:
 
       addOpenNamespace(0, f_im);
 
+      Replaceall(imclass_imports, "$module", module_class_name);
       if (imclass_imports)
 	Printf(f_im, "%s\n", imclass_imports);
 
@@ -524,8 +525,10 @@ public:
 	Printf(f_module, "%s\n", module_imports);
 
         // Auto-generate imports for all generated proxy classes
-      Printf(f_module, "import '%sFFI.dart';\n", module_class_name);
-      Printf(f_module, "import 'dart:ffi' as ffi;\n");
+      Printf(f_module, "library %s;\n", module_class_name);
+	  Printf(f_module, "import 'dart:ffi' as ffi;\n");
+	  Printf(f_module, "import 'dart:io' show Platform;\n");
+	  Printf(f_module, "part '%sFFI.dart';\n", module_class_name);
       for (Iterator it = First(filenames_list); it.item; it = Next(it)) {
         String *filename = it.item;
         // Extract class name from filename (remove .dart extension)
@@ -541,7 +544,7 @@ public:
         Replaceall(class_name, ".dart", "");
         // Skip the main module file and FFI file
         if (Strcmp(class_name, module_class_name) != 0 && !Strstr(class_name, "FFI")) {
-          Printf(f_module, "import '%s.dart';\n", class_name);
+          Printf(f_module, "part '%s.dart';\n", class_name);
         }
         Delete(class_name);
       }
@@ -1382,16 +1385,6 @@ public:
 	else
 	  Replaceall(enum_code, "$enumvalues", "");
 
-	/*if (proxy_flag && is_wrapping_class()) {
-	  // Enums defined within the C++ class are defined within the proxy class
-
-	  // Add extra indentation
-	  Replaceall(enum_code, "\n", "\n  ");
-	  Replaceall(enum_code, "  \n", "\n");
-
-	  Printv(proxy_class_constants_code, "  ", enum_code, "\n\n", NIL);
-	} else {*/
-	  // Global enums are defined in their own file
 	  String *output_directory = outputDirectory(nspace);
 	  String *file_enum_name = symname;
 	  if (proxy_flag && is_wrapping_class() && proxy_class_name) {
@@ -1404,6 +1397,7 @@ public:
 
 	  addOpenNamespace(nspace, f_enum);
 
+	  Printf(f_enum, "part of '%s.dart';\n", module_class_name);
 	  Printv(f_enum, typemapLookup(n, "csimports", typemap_lookup_type, WARN_NONE), // Import statements
 		 "\n", enum_code, "\n", NIL);
 

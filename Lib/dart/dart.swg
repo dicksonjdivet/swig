@@ -11,7 +11,7 @@
  * The imtype typemap contains the C# type used in the intermediary class. 
  * The cstype typemap contains the C# type used in the C# proxy classes, type wrapper classes and module class. */
 
-%typemap(csimports)                   SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "\nimport '$moduleFFI.dart';\nimport 'dart:ffi' as ffi;$csimportsbase\n"
+%typemap(csimports)                   SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "\npart of $module;\n"
 
 /* Base class imports for derived classes */
 %typemap(csimportsbase) SWIGTYPE ""
