@@ -847,7 +847,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* Pointer reference typemaps */
 %typemap(ctype) SWIGTYPE *const& "void *"
-%typemap(imtype, out="global::System.IntPtr") SWIGTYPE *const& "global::System.Runtime.InteropServices.HandleRef"
+%typemap(imtype) SWIGTYPE *const& "ffi.Pointer<ffi.void>"
 %typemap(cstype) SWIGTYPE *const& "$*csclassname"
 %typemap(csin) SWIGTYPE *const& "$*csclassname.getCPtr($csinput)"
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *const& {
@@ -972,22 +972,22 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %define SWIG_CSBODY_TYPEWRAPPER(PTRCTOR_VISIBILITY, DEFAULTCTOR_VISIBILITY, CPTR_VISIBILITY, TYPE...)
 // Typewrapper classes
 %typemap(csbody) TYPE *, TYPE &, TYPE &&, TYPE [] %{
-  private global::System.Runtime.InteropServices.HandleRef swigCPtr;
+  ffi.Pointer<ffi.Void> swigCPtr;
 
-  PTRCTOR_VISIBILITY $csclassname(global::System.IntPtr cPtr, bool futureUse) {
-    swigCPtr = new global::System.Runtime.InteropServices.HandleRef(this, cPtr);
+  $csclassname.internal(ffi.Pointer<ffi.Void> cPtr, bool futureUse)
+    : swigCPtr = cPtr {
   }
 
-  DEFAULTCTOR_VISIBILITY $csclassname() {
-    swigCPtr = new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero);
+  $csclassname() 
+    : swigCPtr = ffi.Pointer<ffi.Void>.fromAddress(0) {
   }
 
-  CPTR_VISIBILITY static global::System.Runtime.InteropServices.HandleRef getCPtr($csclassname obj) {
-    return (obj == null) ? new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero) : obj.swigCPtr;
+  static ffi.Pointer<ffi.Void> getCPtr($csclassname obj) {
+    return obj.swigCPtr;
   }
 
-  CPTR_VISIBILITY static global::System.Runtime.InteropServices.HandleRef swigRelease($csclassname obj) {
-    return (obj == null) ? new global::System.Runtime.InteropServices.HandleRef(null, global::System.IntPtr.Zero) : obj.swigCPtr;
+  static ffi.Pointer<ffi.Void> swigRelease($csclassname obj) {
+    return obj.swigCPtr;
   }
 %}
 

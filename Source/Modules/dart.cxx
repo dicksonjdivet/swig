@@ -515,7 +515,38 @@ public:
       f_im = NULL;
     }
 
-    // Generate the C# module class
+    if (upcasts_code)
+      Printv(f_wrappers, upcasts_code, NIL);
+
+    Printf(f_wrappers, "#ifdef __cplusplus\n");
+    Printf(f_wrappers, "}\n");
+    Printf(f_wrappers, "#endif\n");
+
+    // Output a C# type wrapper class for each SWIG type
+    for (Iterator swig_type = First(swig_types_hash); swig_type.key; swig_type = Next(swig_type)) {
+      emitTypeWrapperClass(swig_type.key, swig_type.item);
+    }
+
+    // Check for overwriting file problems on filesystems that are case insensitive
+    Iterator it1;
+    Iterator it2;
+    for (it1 = First(filenames_list); it1.item; it1 = Next(it1)) {
+      String *item1_lower = Swig_string_lower(it1.item);
+      for (it2 = Next(it1); it2.item; it2 = Next(it2)) {
+	String *item2_lower = Swig_string_lower(it2.item);
+	if (it1.item && it2.item) {
+	  if (Strcmp(item1_lower, item2_lower) == 0) {
+	    Swig_warning(WARN_LANG_PORTABILITY_FILENAME, input_file, line_number,
+			 "Portability warning: File %s will be overwritten by %s on case insensitive filesystems such as "
+			 "Windows' FAT32 and NTFS unless the class/module name is renamed\n", it1.item, it2.item);
+	  }
+	}
+	Delete(item2_lower);
+      }
+      Delete(item1_lower);
+    }
+
+        // Generate the C# module class
     {
       File *f_module = getOutputFile(SWIG_output_directory(), module_class_name);
 
@@ -581,37 +612,6 @@ public:
       if (f_module != f_single_out)
 	Delete(f_module);
       f_module = NULL;
-    }
-
-    if (upcasts_code)
-      Printv(f_wrappers, upcasts_code, NIL);
-
-    Printf(f_wrappers, "#ifdef __cplusplus\n");
-    Printf(f_wrappers, "}\n");
-    Printf(f_wrappers, "#endif\n");
-
-    // Output a C# type wrapper class for each SWIG type
-    for (Iterator swig_type = First(swig_types_hash); swig_type.key; swig_type = Next(swig_type)) {
-      emitTypeWrapperClass(swig_type.key, swig_type.item);
-    }
-
-    // Check for overwriting file problems on filesystems that are case insensitive
-    Iterator it1;
-    Iterator it2;
-    for (it1 = First(filenames_list); it1.item; it1 = Next(it1)) {
-      String *item1_lower = Swig_string_lower(it1.item);
-      for (it2 = Next(it1); it2.item; it2 = Next(it2)) {
-	String *item2_lower = Swig_string_lower(it2.item);
-	if (it1.item && it2.item) {
-	  if (Strcmp(item1_lower, item2_lower) == 0) {
-	    Swig_warning(WARN_LANG_PORTABILITY_FILENAME, input_file, line_number,
-			 "Portability warning: File %s will be overwritten by %s on case insensitive filesystems such as "
-			 "Windows' FAT32 and NTFS unless the class/module name is renamed\n", it1.item, it2.item);
-	  }
-	}
-	Delete(item2_lower);
-      }
-      Delete(item1_lower);
     }
 
     Delete(swig_types_hash);
