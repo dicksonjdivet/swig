@@ -4,7 +4,7 @@
  * C# typemaps
  * ----------------------------------------------------------------------------- */
 
-%include <csharphead.swg>
+%include <darthead.swg>
 
 /* The ctype, imtype and cstype typemaps work together and so there should be one of each. 
  * The ctype typemap contains the PInvoke type used in the PInvoke (C/C++) code. 
@@ -1022,7 +1022,13 @@ SWIG_CSBODY_TYPEWRAPPER(internal, protected, internal, SWIGTYPE)
 
 %typemap(csdispose_derived) SWIGTYPE ""
 
-%typemap(csconstruct, excode=SWIGEXCODE,directorconnect="\n    SwigDirectorConnect();") SWIGTYPE %{: this.internal($imcall, true);
+%typemap(csconstruct, excode=SWIGEXCODE,directorconnect="_swigDirectorConnect();") SWIGTYPE %{
+  : _swigCPtr = $imcall,
+    swigCMemOwn = true
+  {
+    _finalizer.attach(this, _swigCPtr, detach: this);
+    $directorconnect
+  }
 %}
 
 %typemap(csdisposing, methodname="disposeIfValid", methodmodifiers="", parameters="bool disposing") SWIGTYPE {

@@ -22,14 +22,6 @@ part of $module;
 
   $imclassname._internal()
   {
-    var platformPrefixes = {
-      'windows': '',
-      'linux': 'lib',
-      'macos': 'lib',
-      'android': 'lib',
-      'ios': 'lib'
-    };
-
     var platformSuffixes = {
       'windows': '.dll',
       'linux': '.so',
@@ -38,10 +30,14 @@ part of $module;
       'ios': '.dylib'
     };
 
-    var libraryName = platformPrefixes[Platform.operatingSystem]!
-      + "$dllimport" + platformSuffixes[Platform.operatingSystem]!;
-
-    _library = ffi.DynamicLibrary.open(libraryName);
+    var libraryName = "$dllimport" + platformSuffixes[Platform.operatingSystem]!;
+    var debugLibraryName = "$dllimport-d" + platformSuffixes[Platform.operatingSystem]!;
+    try {
+      _library = ffi.DynamicLibrary.open(libraryName);
+    } catch (e) {
+      print("Failed to load $libraryName, trying $debugLibraryName");
+      _library = ffi.DynamicLibrary.open(debugLibraryName);
+    }
   }
 
   factory $imclassname() => $imclassname._instance;
