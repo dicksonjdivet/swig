@@ -21,8 +21,9 @@ class string;
 
 // string
 %typemap(ctype) string "const char *"
-%typemap(imtype) string "string"
-%typemap(cstype) string "string"
+%typemap(imtype) string "ffi.Pointer<Utf8>"
+%typemap(ffitype) string "ffi.Pointer<Utf8>"
+%typemap(cstype) string "String"
 
 %typemap(csdirectorin) string "$iminput"
 %typemap(csdirectorout) string "$cscall"
@@ -58,8 +59,9 @@ class string;
 
 // const string &
 %typemap(ctype) const string & "const char *"
-%typemap(imtype) const string & "string"
-%typemap(cstype) const string & "string"
+%typemap(imtype) const string & "ffi.Pointer<Utf8>"
+%typemap(ffitype) const string & "ffi.Pointer<Utf8>"
+%typemap(cstype) const string & "String"
 
 %typemap(csdirectorin) const string & "$iminput"
 %typemap(csdirectorout) const string & "$cscall"
@@ -92,12 +94,14 @@ class string;
 %typemap(directorin) const string & %{ $input = $1.c_str(); %}
 
 %typemap(csvarin, excode=SWIGEXCODE2) const string & %{
-    set {
+    set $varname (String dartValue) {
+      ffi.Pointer<Utf8> value = dartValue.toNativeUtf8();
       $imcall;$excode
-    } %}
+      calloc.free(value);
+    }  %}
 %typemap(csvarout, excode=SWIGEXCODE2) const string & %{
-    get {
-      string ret = $imcall;$excode
+    String get $varname {
+      String ret = $imcall.toDartString();$excode
       return ret;
     } %}
 

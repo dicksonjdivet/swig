@@ -558,6 +558,7 @@ public:
         // Auto-generate imports for all generated proxy classes
       Printf(f_module, "library %s;\n", module_class_name);
 	  Printf(f_module, "import 'dart:ffi' as ffi;\n");
+    Printf(f_module, "import 'package:ffi/ffi.dart';\n");
 	  Printf(f_module, "import 'dart:io' show Platform;\n");
 	  Printf(f_module, "part '%sFFI.dart';\n", module_class_name);
       for (Iterator it = First(filenames_list); it.item; it = Next(it)) {
@@ -4229,9 +4230,7 @@ public:
       Printf(arg, "j%s", ln);
 
       /* And add to the upcall args */
-      if (i > 0)
-	Printf(jupcall_args, ", ");
-      Printf(jupcall_args, "%s", arg);
+      Printf(jupcall_args, ", %s", arg);
 
       /* Get parameter's intermediary C type */
       if ((c_param_type = Getattr(p, "tmap:ctype"))) {
@@ -4256,9 +4255,8 @@ public:
 	      Printf(w->code, "%s\n", tm);
 
 	  /* Add C type to callback typedef */
-	  if (i > 0)
-	    Printf(callback_typedef_parms, ", ");
-	  Printf(callback_typedef_parms, "%s", c_param_type);
+
+	  Printf(callback_typedef_parms, ", %s", c_param_type);
 
 	  /* Add parameter to the intermediate class code if generating the
 	   * intermediate's upcall code */
@@ -4443,7 +4441,7 @@ public:
       if (!is_void)
 	Printf(w->code, "jresult = (%s) ", c_ret_type);
 
-      Printf(w->code, "swig_callback%s(this, %s);\n", overloaded_name, jupcall_args);
+      Printf(w->code, "swig_callback%s(this%s);\n", overloaded_name, jupcall_args);
 
       if (!is_void) {
 	String *jresult_str = NewString("jresult");
@@ -4530,7 +4528,7 @@ public:
       Printf(stdout, "setting upcalldata, nodeType: %s %s::%s %p\n", nodeType(n), classname, Getattr(n, "name"), n);
       */
 
-      Printf(director_callback_typedefs, "    typedef %s (SWIGSTDCALL* SWIG_Callback%s_t)(void*, ", c_ret_type, methid);
+      Printf(director_callback_typedefs, "    typedef %s (SWIGSTDCALL* SWIG_Callback%s_t)(void* ", c_ret_type, methid);
       Printf(director_callback_typedefs, "%s);\n", callback_typedef_parms);
       Printf(director_callbacks, "    SWIG_Callback%s_t swig_callback%s;\n", methid, overloaded_name);
 

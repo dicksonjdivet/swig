@@ -476,10 +476,10 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(directorin) SWIGTYPE &&
 %{ $input = ($1_ltype) &$1; %}
 
-%typemap(csdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "($iminput == global::System.IntPtr.Zero) ? null : new $csclassname($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE & "new $csclassname($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE && "new $csclassname($iminput, false)"
-%typemap(csdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$csclassname.getCPtr($cscall).Handle"
+%typemap(csdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "$csclassname.internal($iminput, false)"
+%typemap(csdirectorin) SWIGTYPE & "new $csclassname.internal($iminput, false)"
+%typemap(csdirectorin) SWIGTYPE && "new $csclassname.internal($iminput, false)"
+%typemap(csdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$csclassname.getCPtr($cscall)"
 
 /* Default array handling */
 %typemap(in) SWIGTYPE [] %{ $1 = ($1_ltype)$input; %}
