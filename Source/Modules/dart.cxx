@@ -2419,27 +2419,65 @@ public:
     return SWIG_OK;
   }
 
+  /* -----------------------------------------------------------------------------
+   * printArgumentDeclaration()
+   *
+   * Prints a parameter declaration for Dart. Handles optional positional
+   * parameters with default values using Dart's [param = value] syntax.
+   * The caller is responsible for outputting [ and ] around optional parameters.
+   * ----------------------------------------------------------------------------- */
+
   void printArgumentDeclaration(Node *n, Parm *p, String *param_type, String *arg, String *code)
   {
-    String *specifiedoverridekey = NewString("feature:cs:defaultargs:");
+    // Check for a per-argument override: feature:dart:defaultvalue:<argname>
+    String *specifiedoverridekey = NewString("feature:dart:defaultvalue:");
     Append(specifiedoverridekey, arg);
     String *specifiedoverridevalue = Getattr(n, specifiedoverridekey);
+    
     if (specifiedoverridevalue) {
-      Printf(code, "%s %s=%s", param_type, arg, specifiedoverridevalue);
+      // User specified a custom default value for this argument
+      Printf(code, "%s %s = %s", param_type, arg, specifiedoverridevalue);
     } else {
-      String *cppvalue = NULL;
-      //if they've not specified defaultargs, then fall back to
-      //the normal default handling of specifying one overload per possible
-      //set of arguments.  If they have, then use the default argument from
-      //c++ as a literal csharp expression.
-      if (Getattr(n, "feature:cs:defaultargs"))
-        cppvalue = Getattr(p, "value");
-      if (cppvalue)
-        Printf(code, "%s %s=%s", param_type, arg, cppvalue);
-      else
+      // Use the C++ default value if available
+      String *cppvalue = Getattr(p, "value");
+      if (cppvalue) {
+        Printf(code, "%s %s = %s", param_type, arg, cppvalue);
+      } else {
         Printf(code, "%s %s", param_type, arg);
+      }
     }
     Delete(specifiedoverridekey);
+  }
+
+  /* -----------------------------------------------------------------------------
+   * hasDefaultValue()
+   *
+   * Returns true if the parameter has a default value (C++ default).
+   * ----------------------------------------------------------------------------- */
+
+  bool hasDefaultValue(Parm *p) {
+    String *cppvalue = Getattr(p, "value");
+    return cppvalue != NULL;
+  }
+
+  /* -----------------------------------------------------------------------------
+   * hasDefaultValue() with override support
+   *
+   * Returns true if the parameter has a default value (override or C++ default).
+   * ----------------------------------------------------------------------------- */
+
+  bool hasDefaultValue(Node *n, Parm *p, String *arg) {
+    // Check for per-argument override
+    String *specifiedoverridekey = NewString("feature:dart:defaultvalue:");
+    Append(specifiedoverridekey, arg);
+    String *specifiedoverridevalue = Getattr(n, specifiedoverridekey);
+    Delete(specifiedoverridekey);
+    
+    if (specifiedoverridevalue)
+      return true;
+    
+    // Check for C++ default value
+    return hasDefaultValue(p);
   }
 
 
@@ -2523,7 +2561,9 @@ public:
     if (Getattr(n, "overload:ignore"))
       return;
 
-    if (Getattr(n, "feature:cs:defaultargs") && Getattr(n, "defaultargs"))
+    // Skip "defaultargs" copies - Dart uses optional positional parameters instead
+    // of generating multiple overloaded functions
+    if (Getattr(n, "defaultargs"))
       return;
 
     // Don't generate proxy method for additional explicitcall method used in directors
@@ -2610,6 +2650,7 @@ public:
 
     emit_mark_varargs(l);
     int gencomma = !static_flag;
+    bool in_optional_params = false;  // Track if we've started optional parameters
 
     /* Output each parameter */
     for (i = 0, p = l; p; i++) {
@@ -2687,6 +2728,15 @@ public:
 	    Printf(interface_class_code, ", ");
 	}
 	gencomma = 2;
+
+	/* Check if this parameter has a default value and we need to start optional params */
+	if (!in_optional_params && hasDefaultValue(p)) {
+	  in_optional_params = true;
+	  Printf(function_code, "[");
+	  if (is_interface)
+	    Printf(interface_class_code, "[");
+	}
+
         printArgumentDeclaration(n, p, param_type, arg, function_code);
 	if (is_interface)
             printArgumentDeclaration(n, p, param_type, arg, interface_class_code);
@@ -2695,6 +2745,13 @@ public:
 	Delete(param_type);
       }
       p = Getattr(p, "tmap:in:next");
+    }
+
+    /* Close optional params bracket if we had any */
+    if (in_optional_params) {
+      Printf(function_code, "]");
+      if (is_interface)
+	Printf(interface_class_code, "]");
     }
 
     Printf(imcall, ")");
@@ -2894,7 +2951,8 @@ public:
     if (Getattr(n, "overload:ignore"))
       return SWIG_OK;
 
-    if (Getattr(n, "feature:cs:defaultargs") && Getattr(n, "defaultargs"))
+    /* Skip defaultargs copies - we use Dart optional positional parameters instead */
+    if (Getattr(n, "defaultargs"))
       return SWIG_OK;
 
     if (proxy_flag) {
@@ -2953,6 +3011,7 @@ public:
       emit_mark_varargs(l);
 
       int gencomma = 0;
+      bool in_optional_params = false;  // Track if we've started optional parameters
 
       /* Output each parameter */
       for (i = 0, p = l; p; i++) {
@@ -3029,6 +3088,13 @@ public:
 	  Printf(helper_code, ", ");
 	  Printf(helper_args, ", ");
         }
+
+	/* Check if this parameter has a default value and we need to start optional params */
+	if (!in_optional_params && hasDefaultValue(p)) {
+	  in_optional_params = true;
+	  Printf(function_code, "[");
+	}
+
         printArgumentDeclaration(n, p, param_type, arg, function_code);
 	Printf(helper_code, "%s %s", param_type, arg);
 	Printf(helper_args, "%s", cshin ? cshin : arg);
@@ -3041,6 +3107,11 @@ public:
       }
 
       Printf(imcall, ")");
+
+      /* Close optional params bracket if we had any */
+      if (in_optional_params) {
+	Printf(function_code, "]");
+      }
 
       Printf(function_code, ")");
       Printf(helper_code, ")");
@@ -3261,7 +3332,8 @@ public:
     String *post_code = NewString("");
     String *terminator_code = NewString("");
 
-    if (Getattr(n, "feature:cs:defaultargs") && Getattr(n, "defaultargs"))
+    /* Skip defaultargs copies - we use Dart optional positional parameters instead */
+    if (Getattr(n, "defaultargs"))
       return;
 
     if (l) {
@@ -3327,6 +3399,7 @@ public:
 
     bool global_or_member_variable = global_variable_flag || (wrapping_member_flag && !enum_constant_flag);
     int gencomma = 0;
+    bool in_optional_params = false;  // Track if we've started optional parameters
 
     /* Output each parameter */
     for (i = 0, p = l; i < num_arguments; i++) {
@@ -3391,6 +3464,13 @@ public:
       if (gencomma >= 2)
 	Printf(function_code, ", ");
       gencomma = 2;
+
+      /* Check if this parameter has a default value and we need to start optional params */
+      if (!in_optional_params && hasDefaultValue(p)) {
+	in_optional_params = true;
+	Printf(function_code, "[");
+      }
+
       printArgumentDeclaration(n, p, param_type, arg, function_code);
 
       p = Getattr(p, "tmap:in:next");
@@ -3399,6 +3479,12 @@ public:
     }
 
     Printf(imcall, ")");
+
+    /* Close optional params bracket if we had any */
+    if (in_optional_params) {
+      Printf(function_code, "]");
+    }
+
     Printf(function_code, ")");
 
     // Transform return type used in PInvoke function (in intermediary class) to type used in C# wrapper function (in module class)
