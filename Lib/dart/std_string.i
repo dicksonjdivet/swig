@@ -25,7 +25,7 @@ class string;
 %typemap(ffitype) string "ffi.Pointer<Utf8>"
 %typemap(cstype) string "String"
 
-%typemap(csdirectorin) string "$iminput"
+%typemap(csdirectorin) string "$iminput.toDartString()"
 %typemap(csdirectorout) string "$cscall"
 
 %typemap(in, canthrow=1) string 
@@ -45,9 +45,11 @@ class string;
 
 %typemap(directorin) string %{ $input = $1.c_str(); %}
 
-%typemap(csin) string "$csinput"
+%typemap(csin,
+         pre="    ffi.Pointer<Utf8> $csinput_ptr = $csinput.toNativeUtf8();",
+         post="      calloc.free($csinput_ptr);") string "$csinput_ptr"
 %typemap(csout, excode=SWIGEXCODE) string {
-    string ret = $imcall;$excode
+    String ret = $imcall.toDartString();$excode
     return ret;
   }
 
@@ -63,7 +65,7 @@ class string;
 %typemap(ffitype) const string & "ffi.Pointer<Utf8>"
 %typemap(cstype) const string & "String"
 
-%typemap(csdirectorin) const string & "$iminput"
+%typemap(csdirectorin) const string & "$iminput.toDartString()"
 %typemap(csdirectorout) const string & "$cscall"
 
 %typemap(in, canthrow=1) const string &
@@ -75,9 +77,12 @@ class string;
    $1 = &$1_str; %}
 %typemap(out) const string & %{ $result = SWIG_csharp_string_callback($1->c_str()); %}
 
-%typemap(csin) const string & "$csinput"
+%typemap(csin,
+         pre="    ffi.Pointer<Utf8> $csinput_ptr = $csinput.toNativeUtf8();",
+         post="      calloc.free($csinput_ptr);") const string & "$csinput_ptr"
+
 %typemap(csout, excode=SWIGEXCODE) const string & {
-    string ret = $imcall;$excode
+    String ret = $imcall.toDartString();$excode
     return ret;
   }
 
@@ -94,13 +99,13 @@ class string;
 %typemap(directorin) const string & %{ $input = $1.c_str(); %}
 
 %typemap(csvarin, excode=SWIGEXCODE2) const string & %{
-    set $varname (String dartValue) {
-      ffi.Pointer<Utf8> value = dartValue.toNativeUtf8();
+    set $varname ($paramtype dartValue) {
+      ffi.Pointer<Utf8> value_ptr = dartValue.toNativeUtf8();
       $imcall;$excode
-      calloc.free(value);
+      calloc.free(value_ptr);
     }  %}
 %typemap(csvarout, excode=SWIGEXCODE2) const string & %{
-    String get $varname {
+    $returntype get $varname {
       String ret = $imcall.toDartString();$excode
       return ret;
     } %}

@@ -642,23 +642,23 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) char,               const char &               {
-    char ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) signed char,        const signed char &        {
-    sbyte ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) unsigned char,      const unsigned char &      {
-    byte ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) short,              const short &              {
-    short ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) unsigned short,     const unsigned short &     {
-    ushort ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) int,                const int &                {
@@ -666,7 +666,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) unsigned int,       const unsigned int &       {
-    uint ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) long,               const long &               {
@@ -674,19 +674,19 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) unsigned long,      const unsigned long &      {
-    uint ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) long long,          const long long &          {
-    long ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) unsigned long long, const unsigned long long & {
-    ulong ret = $imcall;$excode
+    int ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) float,              const float &              {
-    float ret = $imcall;$excode
+    double ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) double,             const double &             {
@@ -694,7 +694,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) char *, char *&, char[ANY], char[] {
-    string ret = $imcall;$excode
+    String ret = $imcall;$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) void {
@@ -714,12 +714,12 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *, SWIGTYPE [] {
     ffi.Pointer<ffi.Void> cPtr = $imcall;
-    $csclassname ret = (cPtr == ffi.Pointer<ffi.Void>.fromAddress(0)) ? null : new $csclassname.internal(cPtr, $owner);$excode
+    $csclassname ret = new $csclassname.internal(cPtr, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*) {
-    string cMemberPtr = $imcall;
-    $csclassname ret = (cMemberPtr == null) ? null : new $csclassname.internal(cMemberPtr, $owner);$excode
+    String cMemberPtr = $imcall;
+    $csclassname ret = new $csclassname.internal(cMemberPtr, $owner);$excode
     return ret;
   }
 
@@ -742,27 +742,27 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) char,               const char &               %{
     $returntype get $varname {
-      char ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) signed char,        const signed char &        %{
     $returntype get $varname {
-      sbyte ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) unsigned char,      const unsigned char &      %{
     $returntype get $varname {
-      byte ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) short,              const short &              %{
     $returntype get $varname {
-      short ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) unsigned short,     const unsigned short &     %{
     $returntype get $varname {
-      ushort ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) int,                const int &                %{
@@ -772,7 +772,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) unsigned int,       const unsigned int &       %{
     $returntype get $varname {
-      uint ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) long,               const long &               %{
@@ -782,22 +782,22 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) unsigned long,      const unsigned long &      %{
     $returntype get $varname {
-      uint ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) long long,          const long long &          %{
     $returntype get $varname {
-      long ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) unsigned long long, const unsigned long long & %{
     $returntype get $varname {
-      ulong ret = $imcall;$excode
+      int ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) float,              const float &              %{
     $returntype get $varname {
-      float ret = $imcall;$excode
+      double ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) double,             const double &             %{
@@ -809,7 +809,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 %typemap(csvarout, excode=SWIGEXCODE2) char *, char *&, char[ANY], char[] %{
     $returntype get $varname {
-      string ret = $imcall;$excode
+      String ret = $imcall;$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) void %{
@@ -833,14 +833,14 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE *, SWIGTYPE [] %{
     $returntype get $varname {
-      global::System.IntPtr cPtr = $imcall;
-      $csclassname ret = (cPtr == global::System.IntPtr.Zero) ? null : new $csclassname(cPtr, $owner);$excode
+      ffi.Pointer<ffi.Void> cPtr = $imcall;
+      $csclassname ret = new $csclassname.internal(cPtr, $owner);$excode
       return ret;
     } %}
 
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE (CLASS::*) %{
     $returntype get $varname {
-      string cMemberPtr = $imcall;
+      String cMemberPtr = $imcall;
       $csclassname ret = (cMemberPtr == null) ? null : new $csclassname(cMemberPtr, $owner);$excode
       return ret;
     } %}
@@ -1027,6 +1027,13 @@ SWIG_CSBODY_TYPEWRAPPER(internal, protected, internal, SWIGTYPE)
     swigCMemOwn = true
   {
     _finalizer.attach(this, _swigCPtr, detach: this);
+    $directorconnect
+  }
+%}
+
+%typemap(csconstruct_derived, excode=SWIGEXCODE,directorconnect="_swigDirectorConnect();") SWIGTYPE %{
+  : _swigCPtr = $imcall
+  {
     $directorconnect
   }
 %}
@@ -1254,7 +1261,7 @@ SWIGEXPORT char *SWIGSTDCALL SWIG_csharp_string_str(SWIG_csharp_string *p) {
 %typemap(out) char *, char[ANY], char[] %{ $result = $1; %}
 %typemap(csin) char *, char[ANY], char[] "new $imclassname.SWIGStringMarshal($csinput).swigCPtr"
 %typemap(csout, excode=SWIGEXCODE) char *, char[ANY], char[] {
-    string ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
+    String ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
     return ret;
   }
 %typemap(csvarin, excode=SWIGEXCODE2) char *, char[ANY], char[] %{
@@ -1263,7 +1270,7 @@ SWIGEXPORT char *SWIGSTDCALL SWIG_csharp_string_str(SWIG_csharp_string *p) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) char *, char[ANY], char[] %{
     get {
-      string ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
+      String ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
       return ret;
     } %}
 */

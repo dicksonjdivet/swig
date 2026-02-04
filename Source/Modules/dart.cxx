@@ -2756,9 +2756,9 @@ public:
 	  String *methid = Getattr(udata, "class_methodidx");
 
 	  if (!Cmp(return_type, "void"))
-	    Printf(excode, "if (SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s)) %s; else %s", proxy_function_name, methid, ex_imcall, imcall);
+	    Printf(excode, "%s", imcall);
 	  else
-	    Printf(excode, "(SwigDerivedClassHasMethod(\"%s\", swigMethodTypes%s) ? %s : %s)", proxy_function_name, methid, ex_imcall, imcall);
+	    Printf(excode, "%s", imcall);
 
 	  Clear(imcall);
 	  Printv(imcall, excode, NIL);
@@ -2775,27 +2775,28 @@ public:
     } else {
       Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No csout typemap defined for %s\n", SwigType_str(t, 0));
     }
-
     if (wrapping_member_flag && !enum_constant_flag) {
       // Properties
+      String* variable_type = return_type;
+      if (setter_flag) {
+        assert(last_parm);	// (last parameter is the only parameter for properties)
+        /* Get variable type - ensure the variable name is fully resolved during typemap lookup via the symbol table set in NewParmNode */
+        SwigType *cvariable_type = Getattr(last_parm, "type");
+        Parm *variable_parm = NewParmNode(cvariable_type, n);
+        if ((tm = Swig_typemap_lookup("cstype", variable_parm, "", 0))) {
+          String *cstypeout = Getattr(variable_parm, "tmap:cstype:out");	// the type in the cstype typemap's out attribute overrides the type in the typemap
+        if (cstypeout)
+          tm = cstypeout;
+          substituteClassname(cvariable_type, tm);
+          variable_type = tm;
+        } else {
+          Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No cstype typemap defined for %s\n", SwigType_str(cvariable_type, 0));
+        }
+      }
+
       if (generate_property_declaration_flag) {	// Ensure the declaration is generated just once should the property contain both a set and get
 	// Get the C# variable type - obtained differently depending on whether a setter is required.
-	String *variable_type = return_type;
-	if (setter_flag) {
-	  assert(last_parm);	// (last parameter is the only parameter for properties)
-	  /* Get variable type - ensure the variable name is fully resolved during typemap lookup via the symbol table set in NewParmNode */
-	  SwigType *cvariable_type = Getattr(last_parm, "type");
-	  Parm *variable_parm = NewParmNode(cvariable_type, n);
-	  if ((tm = Swig_typemap_lookup("cstype", variable_parm, "", 0))) {
-	    String *cstypeout = Getattr(variable_parm, "tmap:cstype:out");	// the type in the cstype typemap's out attribute overrides the type in the typemap
-	    if (cstypeout)
-	      tm = cstypeout;
-	    substituteClassname(cvariable_type, tm);
-	    variable_type = tm;
-	  } else {
-	    Swig_warning(WARN_CSHARP_TYPEMAP_CSOUT_UNDEF, input_file, line_number, "No cstype typemap defined for %s\n", SwigType_str(cvariable_type, 0));
-	  }
-	}
+
 	const String *csattributes = Getattr(n, "feature:cs:attributes");
 	if (csattributes)
 	  Printf(proxy_class_code, "  %s\n", csattributes);
@@ -2826,7 +2827,7 @@ public:
           Replaceall(tm, "$imfuncname", intermediary_function_name);
 	  Replaceall(tm, "$imcall", imcall);
           Replaceall(tm, "$varname", variable_name);
-          Replaceall(tm, "$paramtype", cvariable_type);
+          Replaceall(tm, "$paramtype", variable_type);
 
 	  excodeSubstitute(n, tm, "csvarin", variable_parm);
 	  Printf(proxy_class_code, "%s", tm);
@@ -2844,7 +2845,8 @@ public:
           Replaceall(tm, "$imfuncname", intermediary_function_name);
           Replaceall(tm, "$imcall", imcall);
           Replaceall(tm, "$varname", variable_name);
-          Replaceall(tm, "$returntype", t);
+          Replaceall(tm, "$returntype", variable_type);
+
 	  excodeSubstitute(n, tm, "csvarout", n);
 	  Printf(proxy_class_code, "%s", tm);
 	} else {
@@ -2914,8 +2916,32 @@ public:
 	tm = imtypeout;
       Printf(im_return_type, "%s", tm);
 
-	  Printf(function_code, "  %s %s(", methodmods, proxy_class_name);
-      Printf(helper_code, "  static private %s SwigConstruct%s(", im_return_type, proxy_class_name);
+            // Check if this constructor is overloaded and generate named constructor for Dart
+      String *constructor_name = NewString("");
+      bool is_multiple_constructor = false;
+
+      if (Getattr(n, "sym:overloaded")) {
+        // Get the overload index from sym:overname (e.g., "__SWIG_0", "__SWIG_1", etc.)
+        String *overname = Getattr(n, "sym:overname");
+        if (overname) {
+          // Extract the number from the overname (format: __SWIG_X)
+          const char *overname_str = Char(overname);
+          // Find the last underscore and get the number after it
+          const char *last_underscore = strrchr(overname_str, '_');
+          if (last_underscore) {
+            int index = atoi(last_underscore + 1);
+            Printf(constructor_name, "%s.create%d", proxy_class_name, index);
+            is_multiple_constructor = true;
+          }
+        }
+      }
+
+      if(!is_multiple_constructor) {
+        Printf(constructor_name, "%s", proxy_class_name);
+      }
+
+      Printf(function_code, "  %s %s(", methodmods, constructor_name);
+      Printf(helper_code, "  static %s SwigConstruct%s(", im_return_type, proxy_class_name);
 
       Printv(imcall, full_imclass_name, "().", mangled_overname, "(", NIL);
 
@@ -3022,19 +3048,40 @@ public:
       /* Insert the csconstruct typemap, doing the replacement for $directorconnect, as needed */
       Hash *attributes = NewHash();
       String *typemap_lookup_type = Getattr(getCurrentClass(), "classtypeobj");
-      String *construct_tm = Copy(typemapLookup(n, "csconstruct", typemap_lookup_type,
+
+      // Determine if this is a derived class
+      bool derived = false;
+      List *baselist = Getattr(getCurrentClass(), "bases");
+      if (baselist) {
+        Iterator base = First(baselist);
+        while (base.item) {
+          if (!(GetFlag(base.item, "feature:ignore") || GetFlag(base.item, "feature:interface"))) {
+            String *baseclassname = Getattr(base.item, "name");
+            if (getProxyName(baseclassname)) {
+              derived = true;
+              break;
+            }
+          }
+          base = Next(base);
+        }
+      }
+
+      const char *construct_tmap = derived ? "csconstruct_derived" : "csconstruct";
+      String *construct_tm = Copy(typemapLookup(n, construct_tmap, typemap_lookup_type,
 						WARN_CSHARP_TYPEMAP_CSCONSTRUCT_UNDEF, attributes));
       if (construct_tm) {
 	if (!feature_director) {
 	  Replaceall(construct_tm, "$directorconnect", "");
 	} else {
 	  String *connect_attr = Getattr(attributes, "tmap:csconstruct:directorconnect");
+	  if (!connect_attr && derived)
+	    connect_attr = Getattr(attributes, "tmap:csconstruct_derived:directorconnect");
 
 	  if (connect_attr) {
 	    Replaceall(construct_tm, "$directorconnect", connect_attr);
 	  } else {
-	    Swig_warning(WARN_CSHARP_NO_DIRECTORCONNECT_ATTR, input_file, line_number, "\"directorconnect\" attribute missing in %s \"csconstruct\" typemap.\n",
-			 Getattr(n, "name"));
+	    Swig_warning(WARN_CSHARP_NO_DIRECTORCONNECT_ATTR, input_file, line_number, "\"directorconnect\" attribute missing in %s \"%s\" typemap.\n",
+			 Getattr(n, "name"), construct_tmap);
 	    Replaceall(construct_tm, "$directorconnect", "");
 	  }
 	}
@@ -3042,7 +3089,7 @@ public:
 	Printv(function_code, " ", construct_tm, NIL);
       }
 
-      excodeSubstitute(n, function_code, "csconstruct", attributes);
+      excodeSubstitute(n, function_code, construct_tmap, attributes);
 
       bool is_pre_code = Len(pre_code) > 0;
       bool is_post_code = Len(post_code) > 0;
