@@ -34,7 +34,7 @@ class string_view;
     return $null;
    }
    $1 = std::string_view($input); %}
-%typemap(out) string_view %{ $result = SWIG_csharp_string_callback(std::string($1).c_str()); %}
+%typemap(out) string_view %{ $result = std::string($1).c_str(); %}
 
 %typemap(directorout, canthrow=1, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) string_view
 %{ if (!$input) {
@@ -75,7 +75,7 @@ class string_view;
    }
    $*1_ltype $1_str($input);
    $1 = &$1_str; %}
-%typemap(out) const string_view & %{ $result = SWIG_csharp_string_callback(std::string(*$1).c_str()); %}
+%typemap(out) const string_view & %{ $result = std::string(*$1).c_str(); %}
 
 %typemap(csin) const string_view & "$csinput"
 %typemap(csout, excode=SWIGEXCODE) const string_view & {

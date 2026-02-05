@@ -34,7 +34,7 @@ class string;
     return $null;
    }
    $1.assign($input); %}
-%typemap(out) string %{ $result = SWIG_csharp_string_callback($1.c_str()); %}
+%typemap(out) string %{ $result = $1.c_str(); %}
 
 %typemap(directorout, canthrow=1) string 
 %{ if (!$input) {
@@ -75,7 +75,7 @@ class string;
    }
    $*1_ltype $1_str($input);
    $1 = &$1_str; %}
-%typemap(out) const string & %{ $result = SWIG_csharp_string_callback($1->c_str()); %}
+%typemap(out) const string & %{ $result = $1->c_str(); %}
 
 %typemap(csin,
          pre="    ffi.Pointer<Utf8> $csinput_ptr = $csinput.toNativeUtf8();",

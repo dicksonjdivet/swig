@@ -266,9 +266,9 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* char * - treat as String */
 %typemap(in) char * %{ $1 = ($1_ltype)$input; %}
-%typemap(out) char * %{ $result = SWIG_csharp_string_callback((const char *)$1); %}
+%typemap(out) char * %{ $result = (const char *)$1; %}
 %typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) char * %{ $result = ($1_ltype)$input; %}
-%typemap(directorin) char * %{ $input = SWIG_csharp_string_callback((const char *)$1); %}
+%typemap(directorin) char * %{ $input = (const char *)$1; %}
 %typemap(csdirectorin) char * "$iminput"
 %typemap(csdirectorout) char * "$cscall"
 
@@ -277,7 +277,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   temp = ($*1_ltype)$input;
   $1 = &temp;
 %}
-%typemap(out) char *& %{ if ($1) $result = SWIG_csharp_string_callback((const char *)*$1); %}
+%typemap(out) char *& %{ if ($1) $result = (const char *)*$1; %}
 
 %typemap(out, null="") void ""
 %typemap(csdirectorin) void "$iminput"
@@ -444,7 +444,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   char buf[128];
   char *data = SWIG_PackData(buf, (void *)&$1, sizeof($1));
   *data = '\0';
-  $result = SWIG_csharp_string_callback(buf);
+  $result = (const char *)buf;
 %}
 %typemap(out) SWIGTYPE & %{ $result = (void *)$1; %} 
 %typemap(out) SWIGTYPE && %{ $result = (void *)$1; %} 
@@ -487,10 +487,10 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* char arrays - treat as String */
 %typemap(in) char[ANY], char[] %{ $1 = ($1_ltype)$input; %}
-%typemap(out) char[ANY], char[] %{ $result = SWIG_csharp_string_callback((const char *)$1); %}
+%typemap(out) char[ANY], char[] %{ $result = (const char *)$1; %}
 
 %typemap(directorout) char[ANY], char[] %{ $result = ($1_ltype)$input; %}
-%typemap(directorin) char[ANY], char[] %{ $input = SWIG_csharp_string_callback((const char *)$1); %}
+%typemap(directorin) char[ANY], char[] %{ $input = (const char *)$1; %}
 
 %typemap(csdirectorin) char[ANY], char[] "$iminput"
 %typemap(csdirectorout) char[ANY], char[] "$cscall"

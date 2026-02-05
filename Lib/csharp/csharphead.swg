@@ -288,9 +288,7 @@ SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
 
 #if !defined(SWIG_CSHARP_NO_STRING_HELPER)
 %insert(runtime) %{
-/* Callback for returning strings to C# without leaking memory */
-typedef char * (SWIGSTDCALL* SWIG_CSharpStringHelperCallback)(const char *);
-static SWIG_CSharpStringHelperCallback SWIG_csharp_string_callback = NULL;
+
 %}
 
 %pragma(csharp) imclasscode=%{
@@ -318,9 +316,7 @@ static SWIG_CSharpStringHelperCallback SWIG_csharp_string_callback = NULL;
 #ifdef __cplusplus
 extern "C" 
 #endif
-SWIGEXPORT void SWIGSTDCALL SWIGRegisterStringCallback_$module(SWIG_CSharpStringHelperCallback callback) {
-  SWIG_csharp_string_callback = callback;
-}
+
 %}
 #endif // SWIG_CSHARP_NO_STRING_HELPER
 
