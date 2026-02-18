@@ -477,8 +477,8 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %{ $input = ($1_ltype) &$1; %}
 
 %typemap(csdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "$csclassname.internal($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE & "new $csclassname.internal($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE && "new $csclassname.internal($iminput, false)"
+%typemap(csdirectorin) SWIGTYPE & "$csclassname.internal($iminput, false)"
+%typemap(csdirectorin) SWIGTYPE && "$csclassname.internal($iminput, false)"
 %typemap(csdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$csclassname.getCPtr($cscall)"
 
 /* Default array handling */
@@ -701,25 +701,25 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     $imcall;$excode
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE {
-    $&csclassname ret = new $&csclassname.internal($imcall, true);$excode
+    $&csclassname ret = $&csclassname.internal($imcall, true);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE & {
-    $csclassname ret = new $csclassname.internal($imcall, $owner);$excode
+    $csclassname ret = $csclassname.internal($imcall, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE && {
-    $csclassname ret = new $csclassname.internal($imcall, $owner);$excode
+    $csclassname ret = $csclassname.internal($imcall, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *, SWIGTYPE [] {
     ffi.Pointer<ffi.Void> cPtr = $imcall;
-    $csclassname ret = new $csclassname.internal(cPtr, $owner);$excode
+    $csclassname ret = $csclassname.internal(cPtr, $owner);$excode
     return ret;
   }
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*) {
     String cMemberPtr = $imcall;
-    $csclassname ret = new $csclassname.internal(cMemberPtr, $owner);$excode
+    $csclassname ret = $csclassname.internal(cMemberPtr, $owner);$excode
     return ret;
   }
 
@@ -818,30 +818,30 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE %{
     $returntype get $varname {
-      $&csclassname ret = new $&csclassname($imcall, true);$excode
+      $&csclassname ret = $&csclassname($imcall, true);$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE & %{
     $returntype get $varname {
-      $csclassname ret = new $csclassname($imcall, $owner);$excode
+      $csclassname ret = $csclassname($imcall, $owner);$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE && %{
     $returntype get $varname {
-      $csclassname ret = new $csclassname($imcall, $owner);$excode
+      $csclassname ret = $csclassname($imcall, $owner);$excode
       return ret;
     } %}
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE *, SWIGTYPE [] %{
     $returntype get $varname {
       ffi.Pointer<ffi.Void> cPtr = $imcall;
-      $csclassname ret = new $csclassname.internal(cPtr, $owner);$excode
+      $csclassname ret = $csclassname.internal(cPtr, $owner);$excode
       return ret;
     } %}
 
 %typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE (CLASS::*) %{
     $returntype get $varname {
       String cMemberPtr = $imcall;
-      $csclassname ret = (cMemberPtr == null) ? null : new $csclassname(cMemberPtr, $owner);$excode
+      $csclassname ret = (cMemberPtr == null) ? null : $csclassname(cMemberPtr, $owner);$excode
       return ret;
     } %}
 
@@ -851,14 +851,14 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(cstype) SWIGTYPE *const& "$*csclassname"
 %typemap(csin) SWIGTYPE *const& "$*csclassname.getCPtr($csinput)"
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *const& {
-    global::System.IntPtr cPtr = $imcall;
-    $*csclassname ret = (cPtr == global::System.IntPtr.Zero) ? null : new $*csclassname(cPtr, $owner);$excode
+    ffi.Pointer<ffi.Void> cPtr = $imcall;
+    $*csclassname ret = $*csclassname.internal(cPtr, $owner);$excode
     return ret;
   }
 %typemap(csvarout, excode=SWIGEXCODE) SWIGTYPE *const& %{
     get {
-      global::System.IntPtr cPtr = $imcall;
-      $*csclassname ret = (cPtr == global::System.IntPtr.Zero) ? null : new $*csclassname(cPtr, $owner);$excode
+      ffi.Pointer<ffi.Void> cPtr = $imcall;
+      $*csclassname ret = $*csclassname.internal(cPtr, $owner);$excode
       return ret;
     } %}
 
