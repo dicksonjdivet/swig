@@ -847,7 +847,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* Pointer reference typemaps */
 %typemap(ctype) SWIGTYPE *const& "void *"
-%typemap(imtype) SWIGTYPE *const& "ffi.Pointer<ffi.void>"
+%typemap(imtype) SWIGTYPE *const& "ffi.Pointer<ffi.Void>"
 %typemap(cstype) SWIGTYPE *const& "$*csclassname"
 %typemap(csin) SWIGTYPE *const& "$*csclassname.getCPtr($csinput)"
 %typemap(csout, excode=SWIGEXCODE) SWIGTYPE *const& {
