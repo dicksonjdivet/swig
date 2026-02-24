@@ -27,7 +27,7 @@ part of $module;
       'linux': 'lib',
       'macos': 'lib',
       'android': 'lib',
-      'ios': 'lib'
+      'ios': ''
     };
 
     var platformSuffixes = {
@@ -35,7 +35,7 @@ part of $module;
       'linux': '.so',
       'macos': '.dylib',
       'android': '.so',
-      'ios': '.dylib'
+      'ios': '.framework/$dllimport'
     };
 
     var libraryName = platformPrefixes[Platform.operatingSystem]! + "$dllimport" + platformSuffixes[Platform.operatingSystem]!;
