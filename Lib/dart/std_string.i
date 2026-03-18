@@ -11,6 +11,8 @@
 
 %{
 #include <string>
+#include <cstdlib>
+#include <cstring>
 %}
 
 namespace std {
@@ -34,7 +36,7 @@ class string;
     return $null;
    }
    $1.assign($input); %}
-%typemap(out) string %{ $result = $1.c_str(); %}
+%typemap(out) string %{ $result = (const char *)memcpy(malloc($1.size() + 1), $1.c_str(), $1.size() + 1); %}
 
 %typemap(directorout, canthrow=1) string 
 %{ if (!$input) {
@@ -49,7 +51,9 @@ class string;
          pre="    ffi.Pointer<Utf8> $csinput_ptr = $csinput.toNativeUtf8();",
          post="      calloc.free($csinput_ptr);") string "$csinput_ptr"
 %typemap(csout, excode=SWIGEXCODE) string {
-    String ret = $imcall.toDartString();$excode
+    ffi.Pointer<Utf8> ret_ptr = $imcall;
+    String ret = ret_ptr.toDartString();$excode
+    calloc.free(ret_ptr);
     return ret;
   }
 
@@ -75,14 +79,16 @@ class string;
    }
    $*1_ltype $1_str($input);
    $1 = &$1_str; %}
-%typemap(out) const string & %{ $result = $1->c_str(); %}
+%typemap(out) const string & %{ $result = (const char *)memcpy(malloc($1->size() + 1), $1->c_str(), $1->size() + 1); %}
 
 %typemap(csin,
          pre="    ffi.Pointer<Utf8> $csinput_ptr = $csinput.toNativeUtf8();",
          post="      calloc.free($csinput_ptr);") const string & "$csinput_ptr"
 
 %typemap(csout, excode=SWIGEXCODE) const string & {
-    String ret = $imcall.toDartString();$excode
+    ffi.Pointer<Utf8> ret_ptr = $imcall;
+    String ret = ret_ptr.toDartString();$excode
+    calloc.free(ret_ptr);
     return ret;
   }
 
@@ -106,7 +112,9 @@ class string;
     }  %}
 %typemap(csvarout, excode=SWIGEXCODE2) const string & %{
     $returntype get $varname {
-      String ret = $imcall.toDartString();$excode
+      ffi.Pointer<Utf8> ret_ptr = $imcall;
+      String ret = ret_ptr.toDartString();$excode
+      calloc.free(ret_ptr);
       return ret;
     } %}
 
