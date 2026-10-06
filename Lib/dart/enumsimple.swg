@@ -18,7 +18,8 @@
 %typemap(out) const enum SWIGTYPE & %{ $result = (int)*$1; %}
 
 %typemap(directorout,warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const enum SWIGTYPE &
-%{ static $*1_ltype temp = ($*1_ltype)$input;
+%{ static $*1_ltype temp;
+   temp = ($*1_ltype)$input;
    $result = &temp; %}
 %typemap(directorin) const enum SWIGTYPE & "$input = (int)$1;"
 %typemap(dartdirectorin) const enum SWIGTYPE & "$iminput"

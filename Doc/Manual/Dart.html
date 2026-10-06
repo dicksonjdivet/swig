@@ -429,6 +429,18 @@ Anonymous enums are wrapped as integer constants in the module class or in the p
 Named enums can also be wrapped as integer constants using the <tt>%dartenum(simple)</tt> directive, or by including <tt>enumsimple.swg</tt> for all enums.
 </p>
 
+<p>
+A Dart enum can only hold one of its values, so <tt>swigToEnum</tt> throws an <tt>ArgumentError</tt> for a C/C++ value which is not one of the enum items.
+Use <tt>%dartenum(simple)</tt> for enums used as bit flags, or for any enum where the C/C++ code uses other values:
+</p>
+
+<div class="code">
+<pre>
+%dartenum(simple) Flags;
+enum Flags { READ = 1, WRITE = 2 };
+</pre>
+</div>
+
 <H3><a name="Dart_classes">41.4.5 Classes</a></H3>
 
 
@@ -532,7 +544,8 @@ SWIG issues a warning and only wraps the first of these, use <tt>%rename</tt> to
 </p>
 
 <p>
-Functions with default arguments are wrapped with optional positional parameters. A missing or <tt>null</tt> argument uses the C++ default value:
+Functions with default arguments are wrapped with optional positional parameters. A missing or <tt>null</tt> argument uses the C++ default value,
+and an <tt>ArgumentError</tt> is thrown if an argument is <tt>null</tt> and a following argument is passed:
 </p>
 
 <div class="code">
@@ -879,6 +892,7 @@ The Dart module is experimental and the following are not supported yet:
 </p>
 
 <ul>
+<li>Smart pointers, such as <tt>std::shared_ptr</tt> and the <tt>smartptr</tt> feature.</li>
 <li>The <tt>nspace</tt> feature and the <tt>%interface</tt> family of directives for multiple inheritance.</li>
 <li>Doxygen comments translation.</li>
 <li>C++ operators other than <tt>operator()</tt>, unless renamed.</li>

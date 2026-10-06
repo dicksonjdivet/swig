@@ -178,7 +178,12 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typemap(out) char *, char[ANY], char[] %{ $result = SWIG_DartStrdup((const char *)$1); %}
 %typemap(out) char *& %{ $result = SWIG_DartStrdup((const char *)*$1); %}
 %typemap(directorin) char *, char[ANY], char[] %{ $input = SWIG_DartStrdup((const char *)$1); %}
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) char *, char[ANY], char[] %{ $result = ($1_ltype)$input; %}
+/* The string returned by a Dart director method is kept until the next call to the director method in the same thread */
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) char *, char[ANY], char[]
+%{ static SWIG_DART_THREAD_LOCAL char *swig_director_string = 0;
+   free(swig_director_string);
+   swig_director_string = (char *)$input;
+   $result = ($1_ltype)swig_director_string; %}
 
 %typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($dartinput);",
          post="      $imclassname.swigFree(swig_$dartinput);") char *, char *&, char[ANY], char[] "swig_$dartinput"
@@ -462,10 +467,10 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* The dispose method deletes the C++ object if it is owned. $imcall is replaced by the C++ destructor call */
 %typemap(dartdispose) SWIGTYPE %{
-  void dispose() {$directordispose
+  void dispose() {
+    _swigFinalizer?.detach(this);
     if (swigCMemOwn) {
-      swigCMemOwn = false;
-      _swigFinalizer?.detach(this);
+      swigCMemOwn = false;$directordispose
       $imcall;
     }
     _swigCPtr_$dartclassname = ffi.nullptr;
@@ -473,10 +478,10 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %}
 
 %typemap(dartdispose_derived) SWIGTYPE %{
-  void dispose() {$directordispose
+  void dispose() {
+    _swigFinalizer?.detach(this);
     if (swigCMemOwn) {
-      swigCMemOwn = false;
-      _swigFinalizer?.detach(this);
+      swigCMemOwn = false;$directordispose
       $imcall;
     }
     _swigCPtr_$dartclassname = ffi.nullptr;
