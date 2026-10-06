@@ -207,9 +207,8 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
     final String message = swigFromNativeStringAndFree(_instance._swigTakePendingExceptionMessage()) ?? '';
     switch (code) {
       case 2: // SWIG_DartArgumentError
-        return ArgumentError(message);
       case 3: // SWIG_DartArgumentNullError
-        return ArgumentError.notNull(message);
+        return ArgumentError(message);
       case 4: // SWIG_DartRangeError
         return RangeError(message);
       case 5: // SWIG_DartStateError
