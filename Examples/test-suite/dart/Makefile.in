@@ -17,9 +17,41 @@ top_srcdir   = ../@top_srcdir@
 top_builddir = ../@top_builddir@
 
 # The following tests are currently broken and need to be fixed.
+# Library files not yet available for Dart: argcargv.i, cdata.i, std_auto_ptr.i, std_map.i, std_unique_ptr.i, std_wstring.i, typemaps.i.
+# Nested classes are flattened, so nested classes with the same name in different classes clash.
+# Dart has no method overloading or hiding, so an overload dispatcher cannot be overridden by a method with a different signature.
 FAILING_C_TESTS := \
+	c_delete \
+	li_cdata \
+	li_cdata_bytes \
 
 FAILING_CPP_TESTS := \
+	argcargvtest \
+	autodoc \
+	cpp11_shared_ptr_upcast \
+	cpp11_std_unique_ptr \
+	cpp11_strongly_typed_enumerations \
+	cpp11_template_parameters_decltype \
+	cpp17_map_no_default_ctor \
+	director_classes \
+	director_overload2 \
+	exception_classname \
+	friends_nested \
+	import_fragments \
+	import_nomodule \
+	inout_typemaps \
+	li_cdata_bytes_cpp \
+	li_cdata_cpp \
+	li_std_auto_ptr \
+	li_std_map \
+	li_std_wstring \
+	li_typemaps \
+	li_typemaps_apply \
+	long_long_apply \
+	newobject3 \
+	smart_pointer_static \
+	smart_pointer_template_defaults_overload \
+	using_nested_member_typedef \
 
 FAILING_MULTI_CPP_TESTS := \
 
