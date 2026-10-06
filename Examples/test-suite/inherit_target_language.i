@@ -8,6 +8,8 @@
 # define csbase javabase
 #elif defined(SWIGD)
 # define csbase dbase
+#elif defined(SWIGDART)
+# define csbase dartbase
 #endif
 
 %pragma(csharp) moduleimports=%{
@@ -25,6 +27,11 @@ class TargetLanguageBase2 { public void targetLanguageBase2Method() {} };
 %pragma(d) globalproxyimports=%{
 private class TargetLanguageBase { public void targetLanguageBaseMethod() {} };
 private class TargetLanguageBase2 { public void targetLanguageBase2Method() {} };
+%}
+
+%pragma(dart) librarycode=%{
+class TargetLanguageBase { void targetLanguageBaseMethod() {} }
+class TargetLanguageBase2 { void targetLanguageBase2Method() {} }
 %}
 
 %typemap(csbase) SWIGTYPE "TargetLanguageBase"
