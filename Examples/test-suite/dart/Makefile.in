@@ -1,0 +1,80 @@
+#######################################################################
+# Makefile for Dart test-suite
+#######################################################################
+
+LANGUAGE     = dart
+DART         = @DART@
+SCRIPTSUFFIX = _runme.dart
+
+HAVE_CXX11   = @HAVE_CXX11@
+HAVE_CXX14   = @HAVE_CXX14@
+HAVE_CXX17   = @HAVE_CXX17@
+HAVE_CXX20   = @HAVE_CXX20@
+HAVE_CXX23   = @HAVE_CXX23@
+HAVE_CXX26   = @HAVE_CXX26@
+srcdir       = @srcdir@
+top_srcdir   = ../@top_srcdir@
+top_builddir = ../@top_builddir@
+
+# The following tests are currently broken and need to be fixed.
+FAILING_C_TESTS := \
+
+FAILING_CPP_TESTS := \
+
+FAILING_MULTI_CPP_TESTS := \
+
+include $(srcdir)/../common.mk
+
+# Overridden variables here
+SRCDIR       = ../$(srcdir)/
+
+# Ensure testsuite remains free from SWIG warnings, apart from the experimental language warning.
+SWIGOPT += -Werror -w524
+
+# Rules for the different types of tests
+%.cpptest:
+	$(setup)
+	+(cd $* && $(swig_and_compile_cpp))
+	+$(run_testcase)
+
+%.ctest:
+	$(setup)
+	+(cd $* && $(swig_and_compile_c))
+	+$(run_testcase)
+
+%.multicpptest:
+	$(setup)
+	+(cd $* && $(swig_and_compile_multi_cpp))
+	+$(run_testcase)
+
+# Makes a directory for the testcase if it does not exist
+setup = \
+	if [ -f $(SCRIPTDIR)/$(SCRIPTPREFIX)$*$(SCRIPTSUFFIX) ]; then	  \
+	  $(ECHO_PROGRESS) "$(ACTION)ing $(LANGUAGE) testcase $* (with run test)" ; \
+	else								  \
+	  $(ECHO_PROGRESS) "$(ACTION)ing $(LANGUAGE) testcase $*" ;	  \
+	fi;								  \
+	if [ ! -d $* ]; then						  \
+	  mkdir $*;							  \
+	fi
+
+# Runs the testcase if a file is found which has _runme.dart appended after the testcase name.
+# The runme file is copied next to the generated Dart code it imports and the native libraries are
+# found using LD_LIBRARY_PATH (Linux), DYLD_LIBRARY_PATH (macOS) or PATH (Windows).
+# Without a runme file, the generated Dart code is checked with the Dart analyzer.
+run_testcase = \
+	if [ -f $(SCRIPTDIR)/$(SCRIPTPREFIX)$*$(SCRIPTSUFFIX) ]; then \
+	  cp $(SCRIPTDIR)/$(SCRIPTPREFIX)$*$(SCRIPTSUFFIX) $*/ && \
+	  (cd $* && env LD_LIBRARY_PATH=".:$$LD_LIBRARY_PATH" DYLD_LIBRARY_PATH=".:$$DYLD_LIBRARY_PATH" PATH=".:$$PATH" \
+	    $(RUNTOOL) $(DART) run $(SCRIPTPREFIX)$*$(SCRIPTSUFFIX)); \
+	else \
+	  $(MAKE) -f $*/$(top_builddir)/$(EXAMPLES)/Makefile DARTSRCS='$*' dart_compile; \
+	fi
+
+# Clean: remove testcase directories
+%.clean:
+	@if [ -d $* ]; then \
+	  rm -rf $*; \
+	fi
+
+clean:

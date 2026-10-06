@@ -401,6 +401,66 @@ d_clean:
 	rm -f *.@OBJEXT@ *@SO@
 
 ##################################################################
+#####                       DART                            ######
+##################################################################
+
+DART = @DART@
+DART_LIBPREFIX = @DARTLIBRARYPREFIX@
+DART_SO = @DARTSO@
+DARTFLAGS =
+DART_RUNME = $(RUNME).dart
+
+# ----------------------------------------------------------------
+# Build a Dart dynamically loadable module (C)
+# ----------------------------------------------------------------
+
+dart: $(SRCDIR_SRCS)
+	$(SWIG) -dart $(SWIGOPT) -o $(ISRCS) $(INTERFACEPATH)
+	$(CC) -c $(CCSHARED) $(CPPFLAGS) $(CFLAGS) $(SRCDIR_SRCS) $(ISRCS) $(INCLUDES)
+	$(LDSHARED) $(CFLAGS) $(LDFLAGS) $(OBJS) $(IOBJS) $(LIBS) -o $(DART_LIBPREFIX)$(TARGET)$(DART_SO)
+
+# ----------------------------------------------------------------
+# Build a Dart dynamically loadable module (C++)
+# ----------------------------------------------------------------
+
+dart_cpp: $(SRCDIR_SRCS)
+	$(SWIG) -dart -c++ $(SWIGOPT) -o $(ICXXSRCS) $(INTERFACEPATH)
+	$(CXX) -c $(CCSHARED) $(CPPFLAGS) $(CXXFLAGS) $(SRCDIR_SRCS) $(SRCDIR_CXXSRCS) $(ICXXSRCS) $(INCLUDES)
+	$(CXXSHARED) $(CXXFLAGS) $(LDFLAGS) $(OBJS) $(IOBJS) $(LIBS) $(CPP_DLLIBS) -o $(DART_LIBPREFIX)$(TARGET)$(DART_SO)
+
+# ----------------------------------------------------------------
+# Check the Dart code for errors (static analysis, Dart is not compiled ahead of time)
+# ----------------------------------------------------------------
+
+dart_compile:
+	$(COMPILETOOL) $(DART) analyze --no-fatal-warnings $(DARTFLAGS) $(DARTSRCS)
+
+# -----------------------------------------------------------------
+# Run Dart example
+# -----------------------------------------------------------------
+
+dart_run:
+	if test -n "$(SRCDIR)"; then cp $(SRCDIR)$(DART_RUNME) .; fi
+	env LD_LIBRARY_PATH=$$PWD $(RUNTOOL) $(DART) run $(DART_RUNME) $(RUNPIPE)
+
+# -----------------------------------------------------------------
+# Version display
+# -----------------------------------------------------------------
+
+dart_version:
+	$(DART) --version
+
+# -----------------------------------------------------------------
+# Cleaning the Dart examples
+# -----------------------------------------------------------------
+
+dart_clean:
+	rm -f *_wrap* *~ .~* `find . -name \*.dart | grep -v $(DART_RUNME)`
+	if test -n "$(SRCDIR)"; then rm -f $(DART_RUNME); fi
+	rm -f core @EXTRA_CLEAN@
+	rm -f *.@OBJEXT@ *$(DART_SO)
+
+##################################################################
 #####                       Go                              ######
 ##################################################################
 

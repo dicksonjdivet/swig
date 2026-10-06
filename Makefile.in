@@ -73,6 +73,7 @@ docs-main:
 skip-c		= test -n "@SKIP_C@"
 skip-csharp	= test -n "@SKIP_CSHARP@"
 skip-d		= test -n "@SKIP_D@"
+skip-dart	= test -n "@SKIP_DART@"
 skip-go		= test -n "@SKIP_GO@"
 skip-guile	= test -n "@SKIP_GUILE@"
 skip-java	= test -n "@SKIP_JAVA@"
@@ -114,6 +115,7 @@ check-aliveness:
 	@$(skip-c) 	  || ./$(TARGET) -c          -help
 	@$(skip-csharp)   || ./$(TARGET) -csharp     -help
 	@$(skip-d) 	  || ./$(TARGET) -d          -help
+	@$(skip-dart) 	  || ./$(TARGET) -dart       -help
 	@$(skip-go)	  || ./$(TARGET) -go         -help
 	@$(skip-guile)    || ./$(TARGET) -guile      -help
 	@$(skip-java)     || ./$(TARGET) -java       -help
@@ -147,6 +149,7 @@ check-versions:					\
 	check-android-version			\
 	check-csharp-version			\
 	check-d-version				\
+	check-dart-version			\
 	check-go-version			\
 	check-guile-version			\
 	check-java-version			\
@@ -181,6 +184,7 @@ check-examples:					\
 	check-c-examples			\
 	check-csharp-examples			\
 	check-d-examples			\
+	check-dart-examples			\
 	check-go-examples			\
 	check-guile-examples			\
 	check-java-examples			\
@@ -200,6 +204,7 @@ android_examples   :=$(shell sed '/^\#/d' $(srcdir)/Examples/android/check.list)
 c_examples         :=$(shell sed '/^\#/d' $(srcdir)/Examples/c/check.list)
 csharp_examples    :=$(shell sed '/^\#/d' $(srcdir)/Examples/csharp/check.list)
 d_examples         :=$(shell sed '/^\#/d' $(srcdir)/Examples/d/check.list)
+dart_examples      :=$(shell sed '/^\#/d' $(srcdir)/Examples/dart/check.list)
 go_examples        :=$(shell sed '/^\#/d' $(srcdir)/Examples/go/check.list)
 guile_examples     :=$(shell sed '/^\#/d' $(srcdir)/Examples/guile/check.list)
 java_examples      :=$(shell sed '/^\#/d' $(srcdir)/Examples/java/check.list)
@@ -256,6 +261,7 @@ check-test-suite:				\
 	check-c-test-suite			\
 	check-csharp-test-suite			\
 	check-d-test-suite			\
+	check-dart-test-suite			\
 	check-go-test-suite			\
 	check-guile-test-suite			\
 	check-java-test-suite			\
@@ -303,6 +309,7 @@ all-test-suite:					\
 	all-c-test-suite			\
 	all-csharp-test-suite			\
 	all-d-test-suite			\
+	all-dart-test-suite			\
 	all-go-test-suite			\
 	all-guile-test-suite			\
 	all-java-test-suite			\
@@ -326,6 +333,7 @@ broken-test-suite:				\
 	broken-c-test-suite			\
 	broken-csharp-test-suite		\
 	broken-d-test-suite			\
+	broken-dart-test-suite			\
 	broken-go-test-suite			\
 	broken-guile-test-suite			\
 	broken-java-test-suite			\
@@ -471,7 +479,7 @@ install-main:
 	@$(INSTALL_PROGRAM) $(TARGET) $(DESTDIR)$(BIN_DIR)/`echo $(TARGET_NOEXE) | sed '$(transform)'`@EXEEXT@
 
 lib-languages = typemaps tcl perl5 python guile java ruby php ocaml octave \
-	csharp lua r c go d javascript javascript/jsc \
+	csharp lua r c go d dart javascript javascript/jsc \
 	javascript/v8 javascript/napi scilab xml
 
 lib-modules = std
