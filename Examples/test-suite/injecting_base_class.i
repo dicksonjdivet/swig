@@ -3,7 +3,8 @@
 %warnfilter(SWIGWARN_JAVA_MULTIPLE_INHERITANCE,
 	    SWIGWARN_CSHARP_MULTIPLE_INHERITANCE,
 	    SWIGWARN_D_MULTIPLE_INHERITANCE,
-	    SWIGWARN_PHP_MULTIPLE_INHERITANCE) MultiDerived;	/* C#, D, Java, PHP multiple inheritance */
+	    SWIGWARN_DART_MULTIPLE_INHERITANCE,
+	    SWIGWARN_PHP_MULTIPLE_INHERITANCE) MultiDerived;	/* C#, D, Dart, Java, PHP multiple inheritance */
 
 // In C++ a base class' name is a member of the base itself (its injected class name), so it is visible
 // by name lookup from within a derived class, named either unqualified ('Base') or through the derived

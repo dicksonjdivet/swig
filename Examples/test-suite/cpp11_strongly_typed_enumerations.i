@@ -243,7 +243,7 @@ private:
 #elif defined(SWIGD)
 %typemap(dbase, replace="1") Enum15 "short"
 %typemap(dbase) Enum16 "short"
-%warnfilter(SWIGWARN_D_MULTIPLE_INHERITANCE) Enum16;
+%warnfilter(SWIGWARN_D_MULTIPLE_INHERITANCE, SWIGWARN_DART_MULTIPLE_INHERITANCE) Enum16;
 %typemap(dbase) Enum17 "uint"
 #endif
 %inline %{

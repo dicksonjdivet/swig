@@ -2,6 +2,7 @@
 %module(ruby_minherit="1") multiple_inheritance_shared_ptr
 
 %warnfilter(SWIGWARN_D_MULTIPLE_INHERITANCE,
+	    SWIGWARN_DART_MULTIPLE_INHERITANCE,
 	    SWIGWARN_PHP_MULTIPLE_INHERITANCE); /* languages not supporting multiple inheritance */
 
 // Typemap changes required to mix %shared_ptr and %interface_impl

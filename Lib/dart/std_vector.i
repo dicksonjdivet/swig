@@ -21,7 +21,7 @@
 
 // MACRO for use within the std::vector class body
 %define SWIG_STD_VECTOR_MINIMUM_INTERNAL(CONST_REFERENCE, CTYPE...)
-%typemap(dartbase) std::vector< CTYPE > "collection.ListBase<$typemap(darttype, CTYPE)>"
+%typemap(dartbase) std::vector< CTYPE > "swig_collection.ListBase<$typemap(darttype, CTYPE)>"
 %proxycode %{
   @override
   int get length => size();

@@ -6,7 +6,8 @@
 %warnfilter(SWIGWARN_JAVA_MULTIPLE_INHERITANCE,
 	    SWIGWARN_CSHARP_MULTIPLE_INHERITANCE,
 	    SWIGWARN_D_MULTIPLE_INHERITANCE,
-	    SWIGWARN_PHP_MULTIPLE_INHERITANCE) Hi<hello::Hello, hi::hi0>; // C#, D, Java, PHP multiple inheritance
+	    SWIGWARN_DART_MULTIPLE_INHERITANCE,
+	    SWIGWARN_PHP_MULTIPLE_INHERITANCE) Hi<hello::Hello, hi::hi0>; // C#, D, Dart, Java, PHP multiple inheritance
 
 %inline %{
   namespace hello
