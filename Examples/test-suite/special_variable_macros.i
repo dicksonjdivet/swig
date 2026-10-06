@@ -214,6 +214,12 @@ namespace Space {
     return new $typemap(dtype, Space::RenameMe)( new $typemap(dtype, Name)(s) );
   }
 %}
+#elif defined(SWIGDART)
+%typemap(dartcode) Space::RenameMe %{
+  static NewName factory(String s) {
+    return $typemap(darttype, Space::RenameMe)($typemap(darttype, Name)(s));
+  }
+%}
 #endif
 
 %rename(NewName) Space::RenameMe;
@@ -252,6 +258,12 @@ namespace Space {
 %typemap(imtype) Space::Pair<std::string, int> = std::string;
 %typemap(dtype) Space::Pair<std::string, int> = std::string;
 %typemap(dout) Space::Pair<std::string, int> = std::string;
+#elif defined(SWIGDART)
+%typemap(ctype) Space::Pair<std::string, int> = std::string;
+%typemap(ffitype) Space::Pair<std::string, int> = std::string;
+%typemap(imtype) Space::Pair<std::string, int> = std::string;
+%typemap(darttype) Space::Pair<std::string, int> = std::string;
+%typemap(dartout) Space::Pair<std::string, int> = std::string;
 #elif defined(SWIGGO)
 %typemap(gotype) Space::Pair<std::string, int> = std::string;
 %typemap(goout) Space::Pair<std::string, int> = std::string;
@@ -293,6 +305,12 @@ Space::Pair<std::string, int> makeStringInt(const std::string& s, int i) {
 %typemap(imtype) Space::Pair<std::string, int> = int;
 %typemap(dtype) Space::Pair<std::string, int> = int;
 %typemap(din) Space::Pair<std::string, int> = int;
+#elif defined(SWIGDART)
+%typemap(ctype) Space::Pair<std::string, int> = int;
+%typemap(ffitype) Space::Pair<std::string, int> = int;
+%typemap(imtype) Space::Pair<std::string, int> = int;
+%typemap(darttype) Space::Pair<std::string, int> = int;
+%typemap(dartin) Space::Pair<std::string, int> = int;
 #elif defined(SWIGGO)
 %typemap(gotype) Space::Pair<std::string, int> = int;
 #elif defined(SWIGJAVA)
