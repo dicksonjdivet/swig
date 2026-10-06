@@ -3210,6 +3210,10 @@ Version 4.6.0 (in progress)
             char or wchar_t array parameter, such as 'char [4]', with NULL. The target language
             method is now passed what it is passed for a NULL 'char *'.
 
+2026-10-06: dicksonjdivet
+            [Dart] Add support for Dart as a target language using dart:ffi. This support is
+            currently experimental.
+
 2026-10-06: wsfulton
             [C#, D, Java, Javascript, Lua, OCaml, Octave, Perl, PHP, Python, Ruby]
             Setting a char array member or global variable, such as 'char [8]', to NULL, such as
