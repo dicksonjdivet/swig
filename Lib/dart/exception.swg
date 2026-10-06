@@ -7,8 +7,8 @@
  * ----------------------------------------------------------------------------- */
 
 /* Map a SWIG error code to a Dart exception */
-%fragment("SWIG_DartException", "header") %{
-SWIGINTERN void SWIG_DartException(int code, const char *msg) {
+%fragment("SWIG_DartThrowException", "header") %{
+SWIGINTERN void SWIG_DartThrowException(int code, const char *msg) {
   SWIG_DartExceptionCodes exception_code;
   switch(code) {
   case SWIG_IndexError:
@@ -40,5 +40,5 @@ SWIGINTERN void SWIG_DartException(int code, const char *msg) {
 %}
 
 /* Raise the error for a SWIG error code and leave the wrapper */
-#define SWIG_exception(code, msg) { SWIG_DartException(code, msg); return $null; }
-%fragment("SWIG_exception", "header", fragment="SWIG_DartException") {}
+#define SWIG_exception(code, msg) { SWIG_DartThrowException(code, msg); return $null; }
+%fragment("SWIG_exception", "header", fragment="SWIG_DartThrowException") {}

@@ -374,6 +374,7 @@ public:
     Printf(f_dart, "// ignore_for_file: camel_case_types, constant_identifier_names, non_constant_identifier_names\n");
     Printf(f_dart, "// ignore_for_file: unused_element, unused_field, unused_import, unnecessary_this\n\n");
 
+    Printf(f_dart, "import 'dart:collection' as collection;\n");
     Printf(f_dart, "import 'dart:convert' as convert;\n");
     Printf(f_dart, "import 'dart:ffi' as ffi;\n");
     Printf(f_dart, "import 'dart:io' as io;\n");
@@ -1913,8 +1914,8 @@ public:
               Printf(condition, " && ");
             if (Equal(type, "double")) {
               // Allow passing a Dart int when a double is expected
-              Printf(condition, "arg%d is num", i);
-              Printf(call, "%s(arg%d as num).toDouble()", i > 0 ? ", " : "", i);
+              Printf(condition, "(arg%d is double || arg%d is int)", i, i);
+              Printf(call, "%s(arg%d is int ? arg%d.toDouble() : arg%d as double)", i > 0 ? ", " : "", i, i, i);
             } else {
               Printf(condition, "arg%d is %s", i, type);
               Printf(call, "%sarg%d as %s", i > 0 ? ", " : "", i, type);
@@ -2003,8 +2004,9 @@ public:
     for (int i = 0; i < Len(param_types); i++)
       Printf(helper_call, "%sarg%d", i > 0 ? ", " : "", i);
     Printf(helper_call, ")");
+    // Any pending exception is checked in the helper function
     Replaceall(construct_tm, "$imcall", helper_call);
-    excodeSubstitute(n, construct_tm, "dartconstruct", attributes);
+    Replaceall(construct_tm, "$excode", "");
 
     // Constructor parameters are named arg0, arg1 etc to match the helper call
     String *ctor_params = NewString("");
