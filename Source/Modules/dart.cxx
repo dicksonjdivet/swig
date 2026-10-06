@@ -2726,11 +2726,12 @@ public:
   void substituteClassnameSpecialVariable(SwigType *classnametype, String *tm, const char *classnamespecialvariable) {
     String *replacementname;
     if (SwigType_isenum(classnametype)) {
-      String *enumname = getEnumName(classnametype);
+      Node *enum_node = enumLookup(classnametype);
+      String *enumname = (enum_node && decodeEnumFeature(enum_node) == ProperEnum) ? getEnumName(classnametype) : NULL;
       if (enumname) {
         replacementname = Copy(enumname);
       } else {
-        // Anonymous enums and unknown enums - ones that have not been parsed (neither a C enum forward reference nor a
+        // Simple enums, anonymous enums and unknown enums - ones that have not been parsed (neither a C enum forward reference nor a
         // definition) or ignored enums - are wrapped as integers, the enum conversion functions are not needed
         {
           String *toenum = NewStringf("%s.swigToEnum", classnamespecialvariable);
