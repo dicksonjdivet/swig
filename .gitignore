@@ -137,6 +137,11 @@ Examples/d/**/example.d
 Examples/d/**/example_im.d
 Examples/d/**/runme
 
+# Dart
+Examples/test-suite/dart/*/
+Examples/dart/*/*.dart
+!Examples/dart/*/runme.dart
+
 # Go
 *.[5689]
 *_gc.c

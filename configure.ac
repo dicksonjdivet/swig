@@ -842,6 +842,55 @@ AC_SUBST(D2COMPILER)
 AC_SUBST(DLIBPREFIX)
 
 #----------------------------------------------------------------
+# Look for Dart
+#----------------------------------------------------------------
+
+AC_ARG_WITH(dart, AS_HELP_STRING([--without-dart], [Disable Dart])
+AS_HELP_STRING([--with-dart=path], [Set location of dart executable]), [DARTBIN="$withval"], [DARTBIN="$alllang_default"])
+
+# First, check for "--without-dart" or "--with-dart=no".
+if test x"${DARTBIN}" = xno; then
+  AC_MSG_NOTICE([Disabling Dart])
+  DART=
+else
+
+  if test "x$DARTBIN" = xyes; then
+    AC_CHECK_PROGS(DART, dart)
+  else
+    DART="$DARTBIN"
+  fi
+
+  if test -n "$DART" ; then
+    AC_MSG_CHECKING(for Dart version)
+    dart_version=`$DART --version 2>&1 | sed -n -e 's/^Dart SDK version: *\([[0-9.]]*\).*/\1/p'`
+    case $dart_version in
+      [[3-9]].* | [[1-9]][[0-9]]*.*)
+        AC_MSG_RESULT([$dart_version])
+        ;;
+      *)
+        AC_MSG_RESULT([$dart_version - not supported, Dart 3.0 or later is required])
+        DART=
+        ;;
+    esac
+  fi
+fi
+
+# Shared library prefix and extension used by the generated Dart code to load the native library.
+case $host in
+*-*-cygwin* | *-*-mingw* | *-*-msys*) DARTLIBRARYPREFIX="";;
+*)DARTLIBRARYPREFIX="lib";;
+esac
+
+case $host in
+*-*-darwin*) DARTSO=".dylib";;
+*) DARTSO=$SO;;
+esac
+
+AC_SUBST(DART)
+AC_SUBST(DARTLIBRARYPREFIX)
+AC_SUBST(DARTSO)
+
+#----------------------------------------------------------------
 # Look for Go compilers
 #----------------------------------------------------------------
 
@@ -2593,6 +2642,13 @@ fi
 AC_SUBST(SKIP_D)
 
 
+SKIP_DART=
+if test -z "$DART" ; then
+    SKIP_DART="1"
+fi
+AC_SUBST(SKIP_DART)
+
+
 SKIP_GO=
 if test -z "$GO" ; then
     SKIP_GO="1"
@@ -2765,6 +2821,7 @@ AC_CONFIG_FILES([
     Examples/test-suite/c/Makefile
     Examples/test-suite/csharp/Makefile
     Examples/test-suite/d/Makefile
+    Examples/test-suite/dart/Makefile
     Examples/test-suite/go/Makefile
     Examples/test-suite/guile/Makefile
     Examples/test-suite/java/Makefile
@@ -2827,6 +2884,7 @@ langs=""
 test -n "$SKIP_C"		|| langs="${langs}c "
 test -n "$SKIP_CSHARP"		|| langs="${langs}csharp "
 test -n "$SKIP_D"		|| langs="${langs}d "
+test -n "$SKIP_DART"		|| langs="${langs}dart "
 test -n "$SKIP_GO"		|| langs="${langs}go "
 test -n "$SKIP_GUILE"		|| langs="${langs}guile "
 test -n "$SKIP_JAVA"		|| langs="${langs}java "
