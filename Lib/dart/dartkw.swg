@@ -2,9 +2,9 @@
 #define DART_DARTKW_SWG_
 
 /* Warnings for Dart keywords */
-#define DARTKW(x) %keywordwarn("'" `x` "' is a Dart keyword",rename="%s_")  `x`
+#define DARTKW(x) %keywordwarn("'" `x` "' is a Dart keyword or a name used by the generated Dart code",rename="%s_")  `x`
 
-#define DARTBUILTINKW(x) %keywordwarn("'" `x` "' is a Dart built-in identifier",rename="%s_")  `x`
+#define DARTBUILTINKW(x) %keywordwarn("'" `x` "' is a Dart built-in identifier, which cannot be used as a type name",%$isclass,rename="%s_")  `x`
 
 #define DARTCORETYPE(x) %keywordwarn("'" `x` "' is a Dart core library type",%$isclass,rename="%s_") `x`
 
@@ -18,7 +18,6 @@
 */
 
 DARTKW(assert);
-DARTKW(await);
 DARTKW(break);
 DARTKW(case);
 DARTKW(catch);
@@ -49,12 +48,10 @@ DARTKW(true);
 DARTKW(try);
 DARTKW(var);
 DARTKW(void);
-DARTKW(when);
 DARTKW(while);
 DARTKW(with);
-DARTKW(yield);
 
-/* Built-in identifiers, these cannot be used as type names and some of them cannot be used in other contexts either */
+/* Built-in identifiers, these cannot be used as type names */
 DARTBUILTINKW(abstract);
 DARTBUILTINKW(as);
 DARTBUILTINKW(covariant);
@@ -93,6 +90,13 @@ DARTCORETYPE(bool);
 DARTCORETYPE(double);
 DARTCORETYPE(int);
 DARTCORETYPE(num);
+
+/* Import prefixes and functions used in the generated code */
+DARTKW(collection);
+DARTKW(convert);
+DARTKW(ffi);
+DARTKW(identical);
+DARTKW(io);
 
 /* Members of Dart enums */
 DARTENUMKW(index);

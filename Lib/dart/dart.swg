@@ -482,7 +482,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %}
 
 /* Constructors call the swigFromPtr constructor with the pointer to the newly created C++ object */
-%typemap(dartconstruct, excode=SWIGEXCODE) SWIGTYPE "this.swigFromPtr($imcall, true)"
+%typemap(dartconstruct) SWIGTYPE "this.swigFromPtr($imcall, true)"
 
 /* Dart specific directives */
 #define %dartconst(flag)            %feature("dart:const","flag")

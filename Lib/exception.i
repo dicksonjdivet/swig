@@ -242,7 +242,7 @@ SWIGINTERN void SWIG_DThrowException(int code, const char *msg) {
 
 #ifdef SWIGDART
 %{
-SWIGINTERN void SWIG_DartException(int code, const char *msg) {
+SWIGINTERN void SWIG_DartThrowException(int code, const char *msg) {
   SWIG_DartExceptionCodes exception_code;
   switch(code) {
   case SWIG_IndexError:
@@ -274,7 +274,7 @@ SWIGINTERN void SWIG_DartException(int code, const char *msg) {
 %}
 
 #define SWIG_exception(code, msg)\
-{ SWIG_DartException(code, msg); return $null; }
+{ SWIG_DartThrowException(code, msg); return $null; }
 #endif // SWIGDART
 
 #ifdef __cplusplus
