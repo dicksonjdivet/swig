@@ -240,6 +240,43 @@ SWIGINTERN void SWIG_DThrowException(int code, const char *msg) {
 { SWIG_DThrowException(code, msg); return $null; }
 #endif // SWIGD
 
+#ifdef SWIGDART
+%{
+SWIGINTERN void SWIG_DartException(int code, const char *msg) {
+  SWIG_DartExceptionCodes exception_code;
+  switch(code) {
+  case SWIG_IndexError:
+    exception_code = SWIG_DartRangeError;
+    break;
+  case SWIG_ValueError:
+    exception_code = SWIG_DartArgumentError;
+    break;
+  case SWIG_NullReferenceError:
+    exception_code = SWIG_DartArgumentNullError;
+    break;
+  case SWIG_MemoryError:
+    exception_code = SWIG_DartOutOfMemoryError;
+    break;
+  case SWIG_DivisionByZero:
+  case SWIG_IOError:
+  case SWIG_OverflowError:
+  case SWIG_RuntimeError:
+  case SWIG_TypeError:
+  case SWIG_SyntaxError:
+  case SWIG_SystemError:
+  case SWIG_UnknownError:
+  default:
+    exception_code = SWIG_DartException;
+    break;
+  }
+  SWIG_DartSetPendingException(exception_code, msg);
+}
+%}
+
+#define SWIG_exception(code, msg)\
+{ SWIG_DartException(code, msg); return $null; }
+#endif // SWIGDART
+
 #ifdef __cplusplus
 /*
   You can use the SWIG_CATCH_STDEXCEPT macro with the %exception
@@ -293,7 +330,7 @@ SWIGINTERN void SWIG_DThrowException(int code, const char *msg) {
 
 /* rethrow the unknown exception */
 
-#if defined(SWIGCSHARP) || defined(SWIGD)
+#if defined(SWIGCSHARP) || defined(SWIGD) || defined(SWIGDART)
 %typemap(throws,noblock=1, canthrow=1) (...) {
   SWIG_exception(SWIG_RuntimeError,"unknown exception");
 }

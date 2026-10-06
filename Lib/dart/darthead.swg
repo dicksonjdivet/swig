@@ -1,414 +1,228 @@
 /* -----------------------------------------------------------------------------
- * csharphead.swg
+ * darthead.swg
  *
- * Support code for exceptions if the SWIG_CSHARP_NO_EXCEPTION_HELPER is not defined
- * Support code for strings if the SWIG_CSHARP_NO_STRING_HELPER is not defined
+ * Support code for Dart: native library loading, memory management of strings
+ * and conversion of C/C++ errors into Dart exceptions.
  * ----------------------------------------------------------------------------- */
 
 %insert(runtime) %{
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-%}
 
-%pragma(csharp) imclassimports=%{
-part of $module;
+/* Storage class for the pending exception, which needs to be thread local as Dart isolates can run on different threads */
+#if !defined(SWIG_DART_THREAD_LOCAL)
+# if defined(__cplusplus) && __cplusplus >= 201103L
+#  define SWIG_DART_THREAD_LOCAL thread_local
+# elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__STDC_NO_THREADS__)
+#  define SWIG_DART_THREAD_LOCAL _Thread_local
+# elif defined(_MSC_VER)
+#  define SWIG_DART_THREAD_LOCAL __declspec(thread)
+# elif defined(__GNUC__)
+#  define SWIG_DART_THREAD_LOCAL __thread
+# else
+#  define SWIG_DART_THREAD_LOCAL
+# endif
+#endif
 
-%}
-
-%pragma(csharp) imclasscode=%{
-  static final $imclassname _instance = $imclassname._internal();
-  late final ffi.DynamicLibrary _library;
-
-  $imclassname._internal()
-  {
-    var platformPrefixes = {
-      'windows': '',
-      'linux': 'lib',
-      'macos': 'lib',
-      'android': 'lib',
-      'ios': ''
-    };
-
-    var platformSuffixes = {
-      'windows': '.dll',
-      'linux': '.so',
-      'macos': '.dylib',
-      'android': '.so',
-      'ios': '.framework/$dllimport'
-    };
-
-    var libraryName = platformPrefixes[Platform.operatingSystem]! + "$dllimport" + platformSuffixes[Platform.operatingSystem]!;
-    var debugLibraryName = platformPrefixes[Platform.operatingSystem]! + "$dllimport-d" + platformSuffixes[Platform.operatingSystem]!;
-    try {
-      _library = ffi.DynamicLibrary.open(libraryName);
-    } catch (e) {
-      print("Failed to load $libraryName, trying $debugLibraryName");
-      _library = ffi.DynamicLibrary.open(debugLibraryName);
-    }
-  }
-
-  factory $imclassname() => $imclassname._instance;
-%}
-
-#if !defined(SWIG_CSHARP_NO_EXCEPTION_HELPER)
-%insert(runtime) %{
-/* Support for throwing C# exceptions from C/C++. There are two types: 
- * Exceptions that take a message and ArgumentExceptions that take a message and a parameter name. */
+/* Support for throwing Dart exceptions, see the swigTakePendingException method in the generated Dart code */
 typedef enum {
-  SWIG_CSharpApplicationException,
-  SWIG_CSharpArithmeticException,
-  SWIG_CSharpDivideByZeroException,
-  SWIG_CSharpIndexOutOfRangeException,
-  SWIG_CSharpInvalidCastException,
-  SWIG_CSharpInvalidOperationException,
-  SWIG_CSharpIOException,
-  SWIG_CSharpNullReferenceException,
-  SWIG_CSharpOutOfMemoryException,
-  SWIG_CSharpOverflowException,
-  SWIG_CSharpSystemException
-} SWIG_CSharpExceptionCodes;
+  SWIG_DartException = 1,
+  SWIG_DartArgumentError,
+  SWIG_DartArgumentNullError,
+  SWIG_DartRangeError,
+  SWIG_DartStateError,
+  SWIG_DartUnsupportedError,
+  SWIG_DartOutOfMemoryError
+} SWIG_DartExceptionCodes;
 
-typedef enum {
-  SWIG_CSharpArgumentException,
-  SWIG_CSharpArgumentNullException,
-  SWIG_CSharpArgumentOutOfRangeException
-} SWIG_CSharpExceptionArgumentCodes;
+static SWIG_DART_THREAD_LOCAL int SWIG_dart_pending_exception_code = 0;
+static SWIG_DART_THREAD_LOCAL char *SWIG_dart_pending_exception_message = 0;
 
-typedef void (SWIGSTDCALL* SWIG_CSharpExceptionCallback_t)(const char *);
-typedef void (SWIGSTDCALL* SWIG_CSharpExceptionArgumentCallback_t)(const char *, const char *);
-
-typedef struct {
-  SWIG_CSharpExceptionCodes code;
-  SWIG_CSharpExceptionCallback_t callback;
-} SWIG_CSharpException_t;
-
-typedef struct {
-  SWIG_CSharpExceptionArgumentCodes code;
-  SWIG_CSharpExceptionArgumentCallback_t callback;
-} SWIG_CSharpExceptionArgument_t;
-
-static SWIG_CSharpException_t SWIG_csharp_exceptions[] = {
-  { SWIG_CSharpApplicationException, NULL },
-  { SWIG_CSharpArithmeticException, NULL },
-  { SWIG_CSharpDivideByZeroException, NULL },
-  { SWIG_CSharpIndexOutOfRangeException, NULL },
-  { SWIG_CSharpInvalidCastException, NULL },
-  { SWIG_CSharpInvalidOperationException, NULL },
-  { SWIG_CSharpIOException, NULL },
-  { SWIG_CSharpNullReferenceException, NULL },
-  { SWIG_CSharpOutOfMemoryException, NULL },
-  { SWIG_CSharpOverflowException, NULL },
-  { SWIG_CSharpSystemException, NULL }
-};
-
-static SWIG_CSharpExceptionArgument_t SWIG_csharp_exceptions_argument[] = {
-  { SWIG_CSharpArgumentException, NULL },
-  { SWIG_CSharpArgumentNullException, NULL },
-  { SWIG_CSharpArgumentOutOfRangeException, NULL }
-};
-
-static void SWIGUNUSED SWIG_CSharpSetPendingException(SWIG_CSharpExceptionCodes code, const char *msg) {
-  SWIG_CSharpExceptionCallback_t callback = SWIG_csharp_exceptions[SWIG_CSharpApplicationException].callback;
-  if ((size_t)code < sizeof(SWIG_csharp_exceptions)/sizeof(SWIG_CSharpException_t)) {
-    callback = SWIG_csharp_exceptions[code].callback;
-  }
-  callback(msg);
+/* Copy a string into memory that is freed with free(), the Dart code frees strings passed to it with free() */
+static char * SWIGUNUSED SWIG_DartStrdup(const char *s) {
+  char *copy;
+  size_t len;
+  if (!s)
+    return 0;
+  len = strlen(s) + 1;
+  copy = (char *)malloc(len);
+  if (copy)
+    memcpy(copy, s, len);
+  return copy;
 }
 
-static void SWIGUNUSED SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpExceptionArgumentCodes code, const char *msg, const char *param_name) {
-  SWIG_CSharpExceptionArgumentCallback_t callback = SWIG_csharp_exceptions_argument[SWIG_CSharpArgumentException].callback;
-  if ((size_t)code < sizeof(SWIG_csharp_exceptions_argument)/sizeof(SWIG_CSharpExceptionArgument_t)) {
-    callback = SWIG_csharp_exceptions_argument[code].callback;
-  }
-  callback(msg, param_name);
+static void SWIGUNUSED SWIG_DartSetPendingException(SWIG_DartExceptionCodes code, const char *msg) {
+  free(SWIG_dart_pending_exception_message);
+  SWIG_dart_pending_exception_code = (int)code;
+  SWIG_dart_pending_exception_message = SWIG_DartStrdup(msg ? msg : "");
 }
-%}
 
-%insert(runtime) %{
+#define SWIG_contract_assert(nullreturn, expr, msg) do { if (!(expr)) { SWIG_DartSetPendingException(SWIG_DartArgumentError, msg); return nullreturn; } } while (0)
+
 #ifdef __cplusplus
-extern "C" 
+extern "C" {
 #endif
-SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionCallbacks_$module(
-                                                SWIG_CSharpExceptionCallback_t applicationCallback,
-                                                SWIG_CSharpExceptionCallback_t arithmeticCallback,
-                                                SWIG_CSharpExceptionCallback_t divideByZeroCallback, 
-                                                SWIG_CSharpExceptionCallback_t indexOutOfRangeCallback, 
-                                                SWIG_CSharpExceptionCallback_t invalidCastCallback,
-                                                SWIG_CSharpExceptionCallback_t invalidOperationCallback,
-                                                SWIG_CSharpExceptionCallback_t ioCallback,
-                                                SWIG_CSharpExceptionCallback_t nullReferenceCallback,
-                                                SWIG_CSharpExceptionCallback_t outOfMemoryCallback, 
-                                                SWIG_CSharpExceptionCallback_t overflowCallback, 
-                                                SWIG_CSharpExceptionCallback_t systemCallback) {
-  SWIG_csharp_exceptions[SWIG_CSharpApplicationException].callback = applicationCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpArithmeticException].callback = arithmeticCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpDivideByZeroException].callback = divideByZeroCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpIndexOutOfRangeException].callback = indexOutOfRangeCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpInvalidCastException].callback = invalidCastCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpInvalidOperationException].callback = invalidOperationCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpIOException].callback = ioCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpNullReferenceException].callback = nullReferenceCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpOutOfMemoryException].callback = outOfMemoryCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpOverflowException].callback = overflowCallback;
-  SWIG_csharp_exceptions[SWIG_CSharpSystemException].callback = systemCallback;
+
+SWIGEXPORT void * SWIGSTDCALL SWIG_DartMalloc_$module(size_t size) {
+  return malloc(size);
+}
+
+SWIGEXPORT void SWIGSTDCALL SWIG_DartFree_$module(void *ptr) {
+  free(ptr);
+}
+
+SWIGEXPORT int SWIGSTDCALL SWIG_DartPendingExceptionCode_$module(void) {
+  return SWIG_dart_pending_exception_code;
+}
+
+SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void) {
+  char *msg = SWIG_dart_pending_exception_message;
+  SWIG_dart_pending_exception_code = 0;
+  SWIG_dart_pending_exception_message = 0;
+  return msg;
 }
 
 #ifdef __cplusplus
-extern "C" 
-#endif
-SWIGEXPORT void SWIGSTDCALL SWIGRegisterExceptionArgumentCallbacks_$module(
-                                                SWIG_CSharpExceptionArgumentCallback_t argumentCallback,
-                                                SWIG_CSharpExceptionArgumentCallback_t argumentNullCallback,
-                                                SWIG_CSharpExceptionArgumentCallback_t argumentOutOfRangeCallback) {
-  SWIG_csharp_exceptions_argument[SWIG_CSharpArgumentException].callback = argumentCallback;
-  SWIG_csharp_exceptions_argument[SWIG_CSharpArgumentNullException].callback = argumentNullCallback;
-  SWIG_csharp_exceptions_argument[SWIG_CSharpArgumentOutOfRangeException].callback = argumentOutOfRangeCallback;
 }
-%}
-/*
-%pragma(csharp) imclasscode=%{
-  protected class SWIGExceptionHelper {
-
-    typedef ExceptionDelegate = Void Function(Pointer<Utf8> message);
-    typedef ExceptionArgumentDelegate = Void Function(Pointer<Utf8> message, Pointer<Utf8> paramName);
-
-    final ExceptionDelegate applicationDelegate = ExceptionDelegate(SetPendingApplicationException);
-    final ExceptionDelegate arithmeticDelegate = ExceptionDelegate(SetPendingArithmeticException);
-    final ExceptionDelegate divideByZeroDelegate = ExceptionDelegate(SetPendingDivideByZeroException);
-    final ExceptionDelegate indexOutOfRangeDelegate = ExceptionDelegate(SetPendingIndexOutOfRangeException);
-    final ExceptionDelegate invalidCastDelegate = ExceptionDelegate(SetPendingInvalidCastException);
-    final ExceptionDelegate invalidOperationDelegate = ExceptionDelegate(SetPendingInvalidOperationException);
-    final ExceptionDelegate ioDelegate = ExceptionDelegate(SetPendingIOException);
-    final ExceptionDelegate nullReferenceDelegate = ExceptionDelegate(SetPendingNullReferenceException);
-    final ExceptionDelegate outOfMemoryDelegate = ExceptionDelegate(SetPendingOutOfMemoryException);
-    final ExceptionDelegate overflowDelegate = ExceptionDelegate(SetPendingOverflowException);
-    final ExceptionDelegate systemDelegate = ExceptionDelegate(SetPendingSystemException);
-
-    final ExceptionArgumentDelegate argumentDelegate = ExceptionArgumentDelegate(SetPendingArgumentException);
-    final ExceptionArgumentDelegate argumentNullDelegate = ExceptionArgumentDelegate(SetPendingArgumentNullException);
-    final ExceptionArgumentDelegate argumentOutOfRangeDelegate = ExceptionArgumentDelegate(SetPendingArgumentOutOfRangeException);
-
-    [global::System.Runtime.InteropServices.DllImport("$dllimport", EntryPoint="SWIGRegisterExceptionCallbacks_$module")]
-    public static extern void SWIGRegisterExceptionCallbacks_$module(
-                                ExceptionDelegate applicationDelegate,
-                                ExceptionDelegate arithmeticDelegate,
-                                ExceptionDelegate divideByZeroDelegate, 
-                                ExceptionDelegate indexOutOfRangeDelegate, 
-                                ExceptionDelegate invalidCastDelegate,
-                                ExceptionDelegate invalidOperationDelegate,
-                                ExceptionDelegate ioDelegate,
-                                ExceptionDelegate nullReferenceDelegate,
-                                ExceptionDelegate outOfMemoryDelegate, 
-                                ExceptionDelegate overflowDelegate, 
-                                ExceptionDelegate systemExceptionDelegate);
-
-    [global::System.Runtime.InteropServices.DllImport("$dllimport", EntryPoint="SWIGRegisterExceptionArgumentCallbacks_$module")]
-    public static extern void SWIGRegisterExceptionCallbacksArgument_$module(
-                                ExceptionArgumentDelegate argumentDelegate,
-                                ExceptionArgumentDelegate argumentNullDelegate,
-                                ExceptionArgumentDelegate argumentOutOfRangeDelegate);
-
-    static void SetPendingApplicationException(string message) {
-      SWIGPendingException.Set(new global::System.ApplicationException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingArithmeticException(string message) {
-      SWIGPendingException.Set(new global::System.ArithmeticException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingDivideByZeroException(string message) {
-      SWIGPendingException.Set(new global::System.DivideByZeroException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingIndexOutOfRangeException(string message) {
-      SWIGPendingException.Set(new global::System.IndexOutOfRangeException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingInvalidCastException(string message) {
-      SWIGPendingException.Set(new global::System.InvalidCastException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingInvalidOperationException(string message) {
-      SWIGPendingException.Set(new global::System.InvalidOperationException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingIOException(string message) {
-      SWIGPendingException.Set(new global::System.IO.IOException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingNullReferenceException(string message) {
-      SWIGPendingException.Set(new global::System.NullReferenceException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingOutOfMemoryException(string message) {
-      SWIGPendingException.Set(new global::System.OutOfMemoryException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingOverflowException(string message) {
-      SWIGPendingException.Set(new global::System.OverflowException(message, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingSystemException(string message) {
-      SWIGPendingException.Set(new global::System.SystemException(message, SWIGPendingException.Retrieve()));
-    }
-
-    static void SetPendingArgumentException(string message, string paramName) {
-      SWIGPendingException.Set(new global::System.ArgumentException(message, paramName, SWIGPendingException.Retrieve()));
-    }
-    static void SetPendingArgumentNullException(string message, string paramName) {
-      global::System.Exception e = SWIGPendingException.Retrieve();
-      if (e != null) message = message + " Inner Exception: " + e.Message;
-      SWIGPendingException.Set(new global::System.ArgumentNullException(paramName, message));
-    }
-    static void SetPendingArgumentOutOfRangeException(string message, string paramName) {
-      global::System.Exception e = SWIGPendingException.Retrieve();
-      if (e != null) message = message + " Inner Exception: " + e.Message;
-      SWIGPendingException.Set(new global::System.ArgumentOutOfRangeException(paramName, message));
-    }
-
-    static SWIGExceptionHelper() {
-      SWIGRegisterExceptionCallbacks_$module(
-                                applicationDelegate,
-                                arithmeticDelegate,
-                                divideByZeroDelegate,
-                                indexOutOfRangeDelegate,
-                                invalidCastDelegate,
-                                invalidOperationDelegate,
-                                ioDelegate,
-                                nullReferenceDelegate,
-                                outOfMemoryDelegate,
-                                overflowDelegate,
-                                systemDelegate);
-
-      SWIGRegisterExceptionCallbacksArgument_$module(
-                                argumentDelegate,
-                                argumentNullDelegate,
-                                argumentOutOfRangeDelegate);
-    }
-  }
-
-  protected static SWIGExceptionHelper swigExceptionHelper = new SWIGExceptionHelper();
-
-  public class SWIGPendingException {
-    [global::System.ThreadStatic]
-    private static global::System.Exception pendingException = null;
-    private static int numExceptionsPending = 0;
-    private static global::System.Object exceptionsLock = null;
-
-    public static bool Pending {
-      get {
-        bool pending = false;
-        if (numExceptionsPending > 0)
-          if (pendingException != null)
-            pending = true;
-        return pending;
-      } 
-    }
-
-    public static void Set(global::System.Exception e) {
-      if (pendingException != null)
-        throw new global::System.ApplicationException("FATAL: An earlier pending exception from unmanaged code was missed and thus not thrown (" + pendingException.ToString() + ")", e);
-      pendingException = e;
-      lock(exceptionsLock) {
-        numExceptionsPending++;
-      }
-    }
-
-    public static global::System.Exception Retrieve() {
-      global::System.Exception e = null;
-      if (numExceptionsPending > 0) {
-        if (pendingException != null) {
-          e = pendingException;
-          pendingException = null;
-          lock(exceptionsLock) {
-            numExceptionsPending--;
-          }
-        }
-      }
-      return e;
-    }
-
-    static SWIGPendingException() {
-      exceptionsLock = new global::System.Object();
-    }
-  }
-%}
-*/
-#endif // SWIG_CSHARP_NO_EXCEPTION_HELPER
-
-#if !defined(SWIG_CSHARP_NO_STRING_HELPER)
-%insert(runtime) %{
-
-%}
-
-/*
-%pragma(csharp) imclasscode=%{
-  protected class SWIGStringHelper {
-
-    public delegate string SWIGStringDelegate(string message);
-    static SWIGStringDelegate stringDelegate = new SWIGStringDelegate(CreateString);
-
-    [global::System.Runtime.InteropServices.DllImport("$dllimport", EntryPoint="SWIGRegisterStringCallback_$module")]
-    public static extern void SWIGRegisterStringCallback_$module(SWIGStringDelegate stringDelegate);
-
-    static string CreateString(string cString) {
-      return cString;
-    }
-
-    static SWIGStringHelper() {
-      SWIGRegisterStringCallback_$module(stringDelegate);
-    }
-  }
-
-  static protected SWIGStringHelper swigStringHelper = new SWIGStringHelper();
-%}
-*/
-
-%insert(runtime) %{
-#ifdef __cplusplus
 #endif
 %}
-#endif // SWIG_CSHARP_NO_STRING_HELPER
 
-#if !defined(SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER)
-/*
-%pragma(csharp) imclasscode=%{
-  public class SWIGStringWithLengthHelper {
+%pragma(dart) imclasscode=%{
+  static final $imclassname _instance = $imclassname._();
 
-    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_to_c")]
-    private static extern global::System.IntPtr SWIG_csharp_string_to_c0(int size, int len, [global::System.Runtime.InteropServices.In,global::System.Runtime.InteropServices.MarshalAs(global::System.Runtime.InteropServices.UnmanagedType.LPStr, SizeParamIndex=0)] string str);
+  factory $imclassname() => _instance;
 
-    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_size")]
-    private static extern int SWIG_csharp_string_size(global::System.IntPtr str);
+  // The native library. Set it before the first use of the module to override the default library loading.
+  static ffi.DynamicLibrary? swigLibrary;
 
-    [global::System.Runtime.InteropServices.DllImport("$module", EntryPoint="SWIG_csharp_string_str")]
-    private static extern global::System.IntPtr SWIG_csharp_string_str(global::System.IntPtr str);
+  final ffi.DynamicLibrary _library;
 
-    public static global::System.IntPtr SWIG_csharp_string_to_c(string str) {
-      if (str == null)
-        return global::System.IntPtr.Zero;
-      global::System.Text.Encoding utf8 = global::System.Text.Encoding.UTF8;
-      return SWIG_csharp_string_to_c0(utf8.GetByteCount(str), str.Length, str);
+  $imclassname._() : _library = swigLibrary ??= _swigOpenLibrary('$dllimport');
+
+  static ffi.DynamicLibrary _swigOpenLibrary(String name) {
+    final List<String> fileNames;
+    if (io.Platform.isWindows) {
+      fileNames = [name + '.dll', name + '-d.dll'];
+    } else if (io.Platform.isIOS) {
+      fileNames = [name + '.framework/' + name, 'lib' + name + '.dylib'];
+    } else if (io.Platform.isMacOS) {
+      fileNames = ['lib' + name + '.dylib', 'lib' + name + '-d.dylib'];
+    } else {
+      fileNames = ['lib' + name + '.so', 'lib' + name + '-d.so'];
     }
-
-    public static string SWIG_c_to_csharp_string(global::System.IntPtr str) {
-      int size = SWIG_csharp_string_size(str);
-      if (size > 0) {
-        global::System.IntPtr s = SWIG_csharp_string_str(str);
-        byte[] b = new byte[size];
-        global::System.Runtime.InteropServices.Marshal.Copy(s, b, 0, size);
-        global::System.Text.Encoding utf8 = global::System.Text.Encoding.UTF8;
-        return utf8.GetString(b);
+    Object? error;
+    for (final fileName in fileNames) {
+      try {
+        return ffi.DynamicLibrary.open(fileName);
+      } on ArgumentError catch (e) {
+        error ??= e;
       }
+    }
+    if (io.Platform.isIOS) {
+      // Statically linked into the application
+      return ffi.DynamicLibrary.process();
+    }
+    throw error!;
+  }
+
+  late final _swigMalloc = _library.lookupFunction<ffi.Pointer<ffi.Void> Function(ffi.Size), ffi.Pointer<ffi.Void> Function(int)>('SWIG_DartMalloc_$module', isLeaf: true);
+  late final _swigFree = _library.lookupFunction<ffi.Void Function(ffi.Pointer<ffi.Void>), void Function(ffi.Pointer<ffi.Void>)>('SWIG_DartFree_$module', isLeaf: true);
+  late final _swigPendingExceptionCode = _library.lookupFunction<ffi.Int Function(), int Function()>('SWIG_DartPendingExceptionCode_$module', isLeaf: true);
+  late final _swigTakePendingExceptionMessage = _library.lookupFunction<ffi.Pointer<ffi.Uint8> Function(), ffi.Pointer<ffi.Uint8> Function()>('SWIG_DartTakePendingExceptionMessage_$module', isLeaf: true);
+
+  // Returns a native function pointer, for example to use as a NativeFinalizer callback.
+  ffi.Pointer<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>> swigLookupDeleter(String symbol) {
+    return _library.lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(symbol);
+  }
+
+  // Allocates native memory, which must be released with swigFree.
+  static ffi.Pointer<ffi.Void> swigMalloc(int size) {
+    final ffi.Pointer<ffi.Void> ptr = _instance._swigMalloc(size);
+    if (ptr == ffi.nullptr) {
+      throw StateError('Out of memory allocating ' + size.toString() + ' bytes');
+    }
+    return ptr;
+  }
+
+  static void swigFree(ffi.Pointer<ffi.NativeType> ptr) {
+    _instance._swigFree(ptr.cast<ffi.Void>());
+  }
+
+  // Converts a Dart string into a null terminated UTF-8 C string, which must be released with swigFree.
+  static ffi.Pointer<ffi.Uint8> swigToNativeString(String? s) {
+    if (s == null) {
+      return ffi.nullptr;
+    }
+    final List<int> bytes = convert.utf8.encode(s);
+    final ffi.Pointer<ffi.Uint8> ptr = swigMalloc(bytes.length + 1).cast<ffi.Uint8>();
+    final typed = ptr.asTypedList(bytes.length + 1);
+    typed.setAll(0, bytes);
+    typed[bytes.length] = 0;
+    return ptr;
+  }
+
+  // Converts a null terminated UTF-8 C string into a Dart string.
+  static String? swigFromNativeString(ffi.Pointer<ffi.Uint8> ptr) {
+    if (ptr == ffi.nullptr) {
       return null;
     }
+    int length = 0;
+    while (ptr[length] != 0) {
+      length++;
+    }
+    return convert.utf8.decode(ptr.asTypedList(length), allowMalformed: true);
   }
-%}*/
-#endif // SWIG_CSHARP_NO_STRING_WITH_LENGTH_HELPER
 
-#if !defined(SWIG_CSHARP_NO_IMCLASS_STATIC_CONSTRUCTOR)
-// Ensure the class is not marked beforefieldinit
-/*
-%pragma(csharp) imclasscode=%{
-  static $imclassname() {
+  // Converts a null terminated UTF-8 C string into a Dart string and releases the C string.
+  static String? swigFromNativeStringAndFree(ffi.Pointer<ffi.Uint8> ptr) {
+    try {
+      return swigFromNativeString(ptr);
+    } finally {
+      if (ptr != ffi.nullptr) {
+        swigFree(ptr);
+      }
+    }
+  }
+
+  static bool get swigPendingException => _instance._swigPendingExceptionCode() != 0;
+
+  // Converts and clears the pending C/C++ error into a Dart exception or error to throw.
+  static Object swigTakePendingException() {
+    final int code = _instance._swigPendingExceptionCode();
+    final String message = swigFromNativeStringAndFree(_instance._swigTakePendingExceptionMessage()) ?? '';
+    switch (code) {
+      case 2: // SWIG_DartArgumentError
+        return ArgumentError(message);
+      case 3: // SWIG_DartArgumentNullError
+        return ArgumentError.notNull(message);
+      case 4: // SWIG_DartRangeError
+        return RangeError(message);
+      case 5: // SWIG_DartStateError
+        return StateError(message);
+      case 6: // SWIG_DartUnsupportedError
+        return UnsupportedError(message);
+      default:
+        return SwigException(message);
+    }
   }
 %}
-*/
-#endif
 
-%insert(runtime) %{
-/* Contract support */
+%pragma(dart) librarycode=%{
+// Marker for an argument not passed to a function dispatching to overloaded C/C++ functions.
+class _SwigNoArg {
+  const _SwigNoArg();
+}
 
-#define SWIG_contract_assert(nullreturn, expr, msg) do { if (!(expr)) {SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentOutOfRangeException, msg, ""); return nullreturn; } } while (0)
+const Object _swigNoArg = _SwigNoArg();
+
+// Exception thrown when the wrapped C/C++ code reports an error.
+class SwigException implements Exception {
+  final String message;
+
+  SwigException(this.message);
+
+  @override
+  String toString() => 'SwigException: ' + message;
+}
 %}

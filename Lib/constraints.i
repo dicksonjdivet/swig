@@ -60,8 +60,8 @@
 
 %include <exception.i>
 
-#if defined(SWIGCSHARP) || defined(SWIGD)
-// Required attribute for C# and D exception handling
+#if defined(SWIGCSHARP) || defined(SWIGD) || defined(SWIGDART)
+// Required attribute for C#, D and Dart exception handling
 #define SWIGCSHARPCANTHROW , canthrow=1
 #else
 #define SWIGCSHARPCANTHROW

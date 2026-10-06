@@ -286,6 +286,22 @@
 
 /* please leave 760-779 free for C */
 
+#define WARN_DART_TYPEMAP_CTYPE_UNDEF                780
+#define WARN_DART_TYPEMAP_FFITYPE_UNDEF              781
+#define WARN_DART_TYPEMAP_IMTYPE_UNDEF               782
+#define WARN_DART_TYPEMAP_DARTTYPE_UNDEF             783
+#define WARN_DART_MULTIPLE_INHERITANCE               784
+#define WARN_DART_TYPEMAP_CLASSMOD_UNDEF             785
+#define WARN_DART_TYPEMAP_DARTBODY_UNDEF             786
+#define WARN_DART_TYPEMAP_DARTOUT_UNDEF              787
+#define WARN_DART_TYPEMAP_DARTIN_UNDEF               788
+#define WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF       789
+#define WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF        790
+#define WARN_DART_EXCODE                             791
+#define WARN_DART_CANTHROW                           792
+
+/* please leave 780-799 free for Dart */
+
 #define WARN_RUBY_WRONG_NAME                         801
 #define WARN_RUBY_MULTIPLE_INHERITANCE               802
 

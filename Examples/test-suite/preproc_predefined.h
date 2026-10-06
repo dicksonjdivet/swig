@@ -3,6 +3,7 @@
   +defined(SWIGC)\
   +defined(SWIGCSHARP)\
   +defined(SWIGD)\
+  +defined(SWIGDART)\
   +defined(SWIGGO)\
   +defined(SWIGGUILE)\
   +defined(SWIGJAVA)\

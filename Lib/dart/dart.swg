@@ -1,21 +1,17 @@
 /* -----------------------------------------------------------------------------
- * csharp.swg
+ * dart.swg
  *
- * C# typemaps
+ * Dart typemaps
  * ----------------------------------------------------------------------------- */
 
 %include <darthead.swg>
 
-/* The ctype, imtype and cstype typemaps work together and so there should be one of each. 
- * The ctype typemap contains the PInvoke type used in the PInvoke (C/C++) code. 
- * The imtype typemap contains the C# type used in the intermediary class. 
- * The cstype typemap contains the C# type used in the C# proxy classes, type wrapper classes and module class. */
-
-%typemap(csimports)                   SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "\npart of $module;\n"
-
-/* Base class imports for derived classes */
-%typemap(csimportsbase) SWIGTYPE ""
-%typemap(csimportsbase) SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+/* The ctype, ffitype, imtype and darttype typemaps work together and so there should be one of each.
+ * The ctype typemap contains the C type used in the exported C/C++ wrapper functions.
+ * The ffitype typemap contains the dart:ffi native type used to describe the C type to Dart, eg ffi.Int for int.
+ * The imtype typemap contains the Dart type corresponding to the ffitype used in the intermediary (FFI) class.
+ * The darttype typemap contains the Dart type used in the Dart proxy classes, type wrapper classes and module class.
+ * The dartin and dartout typemaps convert between the imtype and the darttype. */
 
 /* Fragments */
 %fragment("SWIG_PackData", "header") {
@@ -45,14 +41,14 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
       uu = ((d - '0') << 4);
     else if ((d >= 'a') && (d <= 'f'))
       uu = ((d - ('a'-10)) << 4);
-    else 
+    else
       return (char *) 0;
     d = *(c++);
     if ((d >= '0') && (d <= '9'))
       uu |= (d - '0');
     else if ((d >= 'a') && (d <= 'f'))
       uu |= (d - ('a'-10));
-    else 
+    else
       return (char *) 0;
     *u = uu;
   }
@@ -60,354 +56,164 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 }
 }
 
+/* The $excode special variable is replaced by the excode typemap attribute code if the
+ * method can throw any exceptions from the C/C++ code, otherwise replaced by nothing. */
+%define SWIGEXCODE "\n    if ($imclassname.swigPendingException) throw $imclassname.swigTakePendingException();" %enddef
+
 /* Primitive types */
-%typemap(ctype) bool,               const bool &               "unsigned int"
-%typemap(ctype) char,               const char &               "char"
-%typemap(ctype) signed char,        const signed char &        "signed char"
-%typemap(ctype) unsigned char,      const unsigned char &      "unsigned char"
-%typemap(ctype) short,              const short &              "short"
-%typemap(ctype) unsigned short,     const unsigned short &     "unsigned short"
-%typemap(ctype) int,                const int &                "int"
-%typemap(ctype) unsigned int,       const unsigned int &       "unsigned int"
-%typemap(ctype) long,               const long &               "int"
-%typemap(ctype) unsigned long,      const unsigned long &      "unsigned int"
-%typemap(ctype) long long,          const long long &          "long long"
-%typemap(ctype) unsigned long long, const unsigned long long & "unsigned long long"
-%typemap(ctype) float,              const float &              "float"
-%typemap(ctype) double,             const double &             "double"
-%typemap(ctype) void                                           "void"
 
-%typemap(ffitype) bool,               const bool &               "ffi.Bool"
-%typemap(ffitype) char,               const char &               "ffi.Char"
-%typemap(ffitype) signed char,        const signed char &        "ffi.SignedChar"
-%typemap(ffitype) unsigned char,      const unsigned char &      "ffi.UnsignedChar"
-%typemap(ffitype) short,              const short &              "ffi.Short"
-%typemap(ffitype) unsigned short,     const unsigned short &     "ffi.UnsignedShort"
-%typemap(ffitype) int,                const int &                "ffi.Int"
-%typemap(ffitype) unsigned int,       const unsigned int &       "ffi.UnsignedInt"
-%typemap(ffitype) long,               const long &               "ffi.Int"
-%typemap(ffitype) unsigned long,      const unsigned long &      "ffi.UnsignedInt"
-%typemap(ffitype) long long,          const long long &          "ffi.LongLong"
-%typemap(ffitype) unsigned long long, const unsigned long long & "ffi.UnsignedLongLong"
-%typemap(ffitype) float,              const float &              "ffi.Float"
-%typemap(ffitype) double,             const double &             "ffi.Double"
-%typemap(ffitype) void                                           "ffi.Void"
+%define %dart_primitive(TYPE, CTYPE, FFITYPE, DARTTYPE)
+%typemap(ctype) TYPE, const TYPE & "CTYPE"
+%typemap(ffitype) TYPE, const TYPE & "FFITYPE"
+%typemap(imtype) TYPE, const TYPE & "DARTTYPE"
+%typemap(darttype) TYPE, const TYPE & "DARTTYPE"
 
-%typemap(imtype) bool,               const bool &               "bool"
-%typemap(imtype) char,               const char &               "int"
-%typemap(imtype) signed char,        const signed char &        "int"
-%typemap(imtype) unsigned char,      const unsigned char &      "int"
-%typemap(imtype) short,              const short &              "int"
-%typemap(imtype) unsigned short,     const unsigned short &     "int"
-%typemap(imtype) int,                const int &                "int"
-%typemap(imtype) unsigned int,       const unsigned int &       "int"
-%typemap(imtype) long,               const long &               "int"
-%typemap(imtype) unsigned long,      const unsigned long &      "int"
-%typemap(imtype) long long,          const long long &          "int"
-%typemap(imtype) unsigned long long, const unsigned long long & "int"
-%typemap(imtype) float,              const float &              "double"
-%typemap(imtype) double,             const double &             "double"
-%typemap(imtype) void                                           "void"
+%typemap(in) TYPE %{ $1 = ($1_ltype)$input; %}
+%typemap(in) const TYPE & ($*1_ltype temp) %{ temp = ($*1_ltype)$input;
+   $1 = &temp; %}
+%typemap(out) TYPE %{ $result = (CTYPE)$1; %}
+%typemap(out) const TYPE & %{ $result = (CTYPE)*$1; %}
 
-%typemap(cstype) bool,               const bool &               "bool"
-%typemap(cstype) char,               const char &               "int"
-%typemap(cstype) signed char,        const signed char &        "int"
-%typemap(cstype) unsigned char,      const unsigned char &      "int"
-%typemap(cstype) short,              const short &              "int"
-%typemap(cstype) unsigned short,     const unsigned short &     "int"
-%typemap(cstype) int,                const int &                "int"
-%typemap(cstype) unsigned int,       const unsigned int &       "int"
-%typemap(cstype) long,               const long &               "int"
-%typemap(cstype) unsigned long,      const unsigned long &      "int"
-%typemap(cstype) long long,          const long long &          "int"
-%typemap(cstype) unsigned long long, const unsigned long long & "int"
-%typemap(cstype) float,              const float &              "double"
-%typemap(cstype) double,             const double &             "double"
-%typemap(cstype) void                                           "void"
+%typemap(directorin) TYPE, const TYPE & "$input = (CTYPE)$1;"
+%typemap(directorout) TYPE %{ $result = ($1_ltype)$input; %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const TYPE &
+%{ static $*1_ltype temp;
+   temp = ($*1_ltype)$input;
+   $result = &temp; %}
 
-%typemap(ctype) char *, char *&, char[ANY], char[]   "char *"
-%typemap(ffitype) char *, char *&, char[ANY], char[]   "ffi.Pointer<ffi.Char>"
-%typemap(imtype) char *, char *&, char[ANY], char[]   "String"
-%typemap(cstype) char *, char *&, char[ANY], char[]   "String"
+%typemap(dartin) TYPE, const TYPE & "$dartinput"
+%typemap(dartout, excode=SWIGEXCODE) TYPE, const TYPE & {
+    final DARTTYPE ret = $imcall;$excode
+    return ret;
+  }
+%typemap(dartdirectorin) TYPE, const TYPE & "$iminput"
+%typemap(dartdirectorout) TYPE, const TYPE & "$dartcall"
+%enddef
 
-/* Non primitive types */
-%typemap(ctype) SWIGTYPE "void *"
-%typemap(ffitype) SWIGTYPE "ffi.Pointer<ffi.Void>"
-%typemap(imtype) SWIGTYPE "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE "$&csclassname"
+%dart_primitive(signed char,        signed char,        ffi.SignedChar,       int)
+%dart_primitive(unsigned char,      unsigned char,      ffi.UnsignedChar,     int)
+%dart_primitive(short,              short,              ffi.Short,            int)
+%dart_primitive(unsigned short,     unsigned short,     ffi.UnsignedShort,    int)
+%dart_primitive(int,                int,                ffi.Int,              int)
+%dart_primitive(unsigned int,       unsigned int,       ffi.UnsignedInt,      int)
+%dart_primitive(long,               long,               ffi.Long,             int)
+%dart_primitive(unsigned long,      unsigned long,      ffi.UnsignedLong,     int)
+%dart_primitive(long long,          long long,          ffi.LongLong,         int)
+%dart_primitive(unsigned long long, unsigned long long, ffi.UnsignedLongLong, int)
+%dart_primitive(size_t,             size_t,             ffi.Size,             int)
+%dart_primitive(float,              float,              ffi.Float,            double)
+%dart_primitive(double,             double,             ffi.Double,           double)
 
-%typemap(ctype) SWIGTYPE [] "void *"
-%typemap(ffitype) SWIGTYPE [] "ffi.Pointer<ffi.Void>"
-%typemap(imtype) SWIGTYPE [] "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE [] "$csclassname"
+/* bool is passed as an int as a C bool is not available in all C compilers */
+%typemap(ctype) bool, const bool & "int"
+%typemap(ffitype) bool, const bool & "ffi.Int"
+%typemap(imtype) bool, const bool & "int"
+%typemap(darttype) bool, const bool & "bool"
+%typemap(in) bool %{ $1 = $input ? true : false; %}
+%typemap(in) const bool & ($*1_ltype temp) %{ temp = $input ? true : false;
+   $1 = &temp; %}
+%typemap(out) bool %{ $result = $1 ? 1 : 0; %}
+%typemap(out) const bool & %{ $result = *$1 ? 1 : 0; %}
+%typemap(directorin) bool, const bool & "$input = $1 ? 1 : 0;"
+%typemap(directorout) bool %{ $result = $input ? true : false; %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const bool &
+%{ static $*1_ltype temp;
+   temp = $input ? true : false;
+   $result = &temp; %}
+%typemap(dartin) bool, const bool & "($dartinput ? 1 : 0)"
+%typemap(dartout, excode=SWIGEXCODE) bool, const bool & {
+    final bool ret = $imcall != 0;$excode
+    return ret;
+  }
+%typemap(dartdirectorin) bool, const bool & "($iminput != 0)"
+%typemap(dartdirectorout) bool, const bool & "($dartcall ? 1 : 0)"
 
-%typemap(ctype) SWIGTYPE * "void *"
-%typemap(ffitype) SWIGTYPE * "ffi.Pointer<ffi.Void>"
-%typemap(imtype) SWIGTYPE * "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE * "$csclassname"
+/* char is a single character Dart String */
+%typemap(ctype) char, const char & "char"
+%typemap(ffitype) char, const char & "ffi.Char"
+%typemap(imtype) char, const char & "int"
+%typemap(darttype) char, const char & "String"
+%typemap(in) char %{ $1 = ($1_ltype)$input; %}
+%typemap(in) const char & ($*1_ltype temp) %{ temp = ($*1_ltype)$input;
+   $1 = &temp; %}
+%typemap(out) char %{ $result = $1; %}
+%typemap(out) const char & %{ $result = *$1; %}
+%typemap(directorin) char, const char & "$input = $1;"
+%typemap(directorout) char %{ $result = ($1_ltype)$input; %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const char &
+%{ static $*1_ltype temp;
+   temp = ($*1_ltype)$input;
+   $result = &temp; %}
+%typemap(dartin) char, const char & "($dartinput.isEmpty ? 0 : $dartinput.codeUnitAt(0))"
+%typemap(dartout, excode=SWIGEXCODE) char, const char & {
+    final String ret = String.fromCharCode($imcall & 0xff);$excode
+    return ret;
+  }
+%typemap(dartdirectorin) char, const char & "String.fromCharCode($iminput & 0xff)"
+%typemap(dartdirectorout) char, const char & "$dartcall.codeUnitAt(0)"
 
-%typemap(ctype) SWIGTYPE & "void *"
-%typemap(ffitype) SWIGTYPE & "ffi.Pointer<ffi.Void>"
-%typemap(imtype) SWIGTYPE & "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE & "$csclassname"
-
-%typemap(ctype) SWIGTYPE && "void *"
-%typemap(ffitype) SWIGTYPE && "ffi.Pointer<ffi.Void>"
-%typemap(imtype) SWIGTYPE && "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE && "$csclassname"
-
-/* pointer to a class member */
-%typemap(ctype) SWIGTYPE (CLASS::*) "char *"
-%typemap(ffitype) SWIGTYPE (CLASS::*) "ffi.Pointer<ffi.Char>"
-%typemap(imtype) SWIGTYPE (CLASS::*) "String"
-%typemap(cstype) SWIGTYPE (CLASS::*) "$csclassname"
-
-/* The following are the in and out typemaps. These are the PInvoke code generating typemaps for converting from C# to C and visa versa. */
-
-/* primitive types */
-%typemap(in) bool
-%{ $1 = $input ? true : false; %}
-
-%typemap(directorout) bool
-%{ $result = $input ? true : false; %}
-
-%typemap(csdirectorin) bool "$iminput"
-%typemap(csdirectorout) bool "$cscall"
-
-%typemap(in) char, 
-             signed char, 
-             unsigned char, 
-             short, 
-             unsigned short, 
-             int, 
-             unsigned int, 
-             long, 
-             unsigned long, 
-             long long, 
-             unsigned long long, 
-             float, 
-             double
-%{ $1 = ($1_ltype)$input; %}
-
-%typemap(directorout) char, 
-             signed char, 
-             unsigned char, 
-             short, 
-             unsigned short, 
-             int, 
-             unsigned int, 
-             long, 
-             unsigned long, 
-             long long, 
-             unsigned long long, 
-             float, 
-             double
-%{ $result = ($1_ltype)$input; %}
-
-%typemap(directorin) bool               "$input = $1;"
-%typemap(directorin) char               "$input = $1;"
-%typemap(directorin) signed char        "$input = $1;"
-%typemap(directorin) unsigned char      "$input = $1;"
-%typemap(directorin) short              "$input = $1;"
-%typemap(directorin) unsigned short     "$input = $1;"
-%typemap(directorin) int                "$input = $1;"
-%typemap(directorin) unsigned int       "$input = (unsigned int)$1;"
-%typemap(directorin) long               "$input = $1;"
-%typemap(directorin) unsigned long      "$input = $1;"
-%typemap(directorin) long long          "$input = $1;"
-%typemap(directorin) unsigned long long "$input = $1;"
-%typemap(directorin) float              "$input = $1;"
-%typemap(directorin) double             "$input = $1;"
-
-%typemap(csdirectorin) char, 
-                       signed char, 
-                       unsigned char, 
-                       short, 
-                       unsigned short, 
-                       int, 
-                       unsigned int, 
-                       long, 
-                       unsigned long, 
-                       long long, 
-                       unsigned long long, 
-                       float, 
-                       double
-  "$iminput"
-
-%typemap(csdirectorout) char, 
-                        signed char, 
-                        unsigned char, 
-                        short, 
-                        unsigned short, 
-                        int, 
-                        unsigned int, 
-                        long, 
-                        unsigned long, 
-                        long long, 
-                        unsigned long long, 
-                        float, 
-                        double
-  "$cscall"
-
-%typemap(out) bool               %{ $result = $1; %}
-%typemap(out) char               %{ $result = $1; %}
-%typemap(out) signed char        %{ $result = $1; %}
-%typemap(out) unsigned char      %{ $result = $1; %}
-%typemap(out) short              %{ $result = $1; %}
-%typemap(out) unsigned short     %{ $result = $1; %}
-%typemap(out) int                %{ $result = $1; %}
-%typemap(out) unsigned int       %{ $result = (unsigned int)$1; %}
-%typemap(out) long               %{ $result = $1; %}
-%typemap(out) unsigned long      %{ $result = $1; %}
-%typemap(out) long long          %{ $result = $1; %}
-%typemap(out) unsigned long long %{ $result = $1; %}
-%typemap(out) float              %{ $result = $1; %}
-%typemap(out) double             %{ $result = $1; %}
-
-/* char * - treat as String */
-%typemap(in) char * %{ $1 = ($1_ltype)$input; %}
-%typemap(out) char * %{ $result = (const char *)$1; %}
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) char * %{ $result = ($1_ltype)$input; %}
-%typemap(directorin) char * %{ $input = (const char *)$1; %}
-%typemap(csdirectorin) char * "$iminput"
-%typemap(csdirectorout) char * "$cscall"
-
-/* char *& - treat as String */
-%typemap(in) char *& ($*1_ltype temp = 0) %{ 
-  temp = ($*1_ltype)$input;
-  $1 = &temp;
-%}
-%typemap(out) char *& %{ if ($1) $result = (const char *)*$1; %}
-
+/* void */
+%typemap(ctype) void "void"
+%typemap(ffitype) void "ffi.Void"
+%typemap(imtype) void "void"
+%typemap(darttype) void "void"
 %typemap(out, null="") void ""
-%typemap(csdirectorin) void "$iminput"
-%typemap(csdirectorout) void "$cscall"
 %typemap(directorin) void ""
+%typemap(dartout, excode=SWIGEXCODE) void {
+    $imcall;$excode
+  }
+%typemap(dartdirectorin) void "$iminput"
+%typemap(dartdirectorout) void "$dartcall"
 
-/* primitive types by const reference */
-%typemap(in) const bool & ($*1_ltype temp)
-%{ temp = $input ? true : false; 
+/* C strings, these are converted to and from UTF-8. Returned strings are copied as the Dart
+ * code cannot know how long the C string remains valid. NULL maps to a Dart null. */
+%typemap(ctype) char *, char *&, char[ANY], char[] "char *"
+%typemap(ffitype) char *, char *&, char[ANY], char[] "ffi.Pointer<ffi.Uint8>"
+%typemap(imtype) char *, char *&, char[ANY], char[] "ffi.Pointer<ffi.Uint8>"
+%typemap(darttype) char *, char *&, char[ANY], char[] "String?"
+
+%typemap(in) char *, char[ANY], char[] %{ $1 = ($1_ltype)$input; %}
+%typemap(in) char *& ($*1_ltype temp = 0) %{ temp = ($*1_ltype)$input;
    $1 = &temp; %}
+%typemap(out) char *, char[ANY], char[] %{ $result = SWIG_DartStrdup((const char *)$1); %}
+%typemap(out) char *& %{ $result = SWIG_DartStrdup((const char *)*$1); %}
+%typemap(directorin) char *, char[ANY], char[] %{ $input = SWIG_DartStrdup((const char *)$1); %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) char *, char[ANY], char[] %{ $result = ($1_ltype)$input; %}
 
-%typemap(directorout,warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const bool &
-%{ static $*1_ltype temp;
-   temp = $input ? true : false; 
-   $result = &temp; %}
+%typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($dartinput);",
+         post="      $imclassname.swigFree(swig_$dartinput);") char *, char *&, char[ANY], char[] "swig_$dartinput"
+%typemap(dartout, excode=SWIGEXCODE) char *, char *&, char[ANY], char[] {
+    final ffi.Pointer<ffi.Uint8> cString = $imcall;$excode
+    return $imclassname.swigFromNativeStringAndFree(cString);
+  }
+%typemap(dartdirectorin) char *, char[ANY], char[] "$imclassname.swigFromNativeStringAndFree($iminput)"
+%typemap(dartdirectorout) char *, char[ANY], char[] "$imclassname.swigToNativeString($dartcall)"
 
-%typemap(csdirectorin) const bool & "$iminput"
-%typemap(csdirectorout) const bool & "$cscall"
+/* Non primitive types, a pointer to the C/C++ object is passed */
+%typemap(ctype) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE *const& "void *"
+%typemap(ffitype) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE *const& "ffi.Pointer<ffi.Void>"
+%typemap(imtype) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE *const& "ffi.Pointer<ffi.Void>"
+%typemap(darttype) SWIGTYPE "$&dartclassname"
+%typemap(darttype) SWIGTYPE *, SWIGTYPE [] "$dartclassname?"
+%typemap(darttype) SWIGTYPE &, SWIGTYPE && "$dartclassname"
+%typemap(darttype) SWIGTYPE *const& "$*dartclassname?"
 
-%typemap(in) const char & ($*1_ltype temp), 
-             const signed char & ($*1_ltype temp), 
-             const unsigned char & ($*1_ltype temp), 
-             const short & ($*1_ltype temp), 
-             const unsigned short & ($*1_ltype temp), 
-             const int & ($*1_ltype temp), 
-             const unsigned int & ($*1_ltype temp), 
-             const long & ($*1_ltype temp), 
-             const unsigned long & ($*1_ltype temp), 
-             const long long & ($*1_ltype temp), 
-             const unsigned long long & ($*1_ltype temp), 
-             const float & ($*1_ltype temp), 
-             const double & ($*1_ltype temp)
-%{ temp = ($*1_ltype)$input; 
-   $1 = &temp; %}
+/* Pointer to a class member, passed as a string */
+%typemap(ctype) SWIGTYPE (CLASS::*) "char *"
+%typemap(ffitype) SWIGTYPE (CLASS::*) "ffi.Pointer<ffi.Uint8>"
+%typemap(imtype) SWIGTYPE (CLASS::*) "ffi.Pointer<ffi.Uint8>"
+%typemap(darttype) SWIGTYPE (CLASS::*) "$dartclassname?"
 
-%typemap(directorout,warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) const char &,
-             const signed char &,
-             const unsigned char &,
-             const short &,
-             const unsigned short &,
-             const int &,
-             const unsigned int &,
-             const long &,
-             const unsigned long &,
-             const long long &,
-             const unsigned long long &,
-             const float &,
-             const double &
-%{ static $*1_ltype temp;
-   temp = ($*1_ltype)$input; 
-   $result = &temp; %}
-
-%typemap(directorin) const bool &           "$input = $1;"
-%typemap(directorin) const char &           "$input = $1;"
-%typemap(directorin) const signed char &    "$input = $1;"
-%typemap(directorin) const unsigned char &  "$input = $1;"
-%typemap(directorin) const short &          "$input = $1;"
-%typemap(directorin) const unsigned short & "$input = $1;"
-%typemap(directorin) const int &            "$input = $1;"
-%typemap(directorin) const unsigned int &   "$input = (unsigned int)$1;"
-%typemap(directorin) const long &           "$input = $1;"
-%typemap(directorin) const unsigned long &  "$input = $1;"
-%typemap(directorin) const long long &      "$input = $1;"
-%typemap(directorin) const unsigned long long & "$input = $1;"
-%typemap(directorin) const float &          "$input = $1;"
-%typemap(directorin) const double &         "$input = $1;"
-
-%typemap(csdirectorin) const char & ($*1_ltype temp), 
-                       const signed char & ($*1_ltype temp), 
-                       const unsigned char & ($*1_ltype temp), 
-                       const short & ($*1_ltype temp), 
-                       const unsigned short & ($*1_ltype temp), 
-                       const int & ($*1_ltype temp), 
-                       const unsigned int & ($*1_ltype temp), 
-                       const long & ($*1_ltype temp), 
-                       const unsigned long & ($*1_ltype temp), 
-                       const long long & ($*1_ltype temp), 
-                       const unsigned long long & ($*1_ltype temp), 
-                       const float & ($*1_ltype temp), 
-                       const double & ($*1_ltype temp)
-  "$iminput"
-
-%typemap(csdirectorout) const char & ($*1_ltype temp), 
-                        const signed char & ($*1_ltype temp), 
-                        const unsigned char & ($*1_ltype temp), 
-                        const short & ($*1_ltype temp), 
-                        const unsigned short & ($*1_ltype temp), 
-                        const int & ($*1_ltype temp), 
-                        const unsigned int & ($*1_ltype temp), 
-                        const long & ($*1_ltype temp), 
-                        const unsigned long & ($*1_ltype temp), 
-                        const long long & ($*1_ltype temp), 
-                        const unsigned long long & ($*1_ltype temp), 
-                        const float & ($*1_ltype temp), 
-                        const double & ($*1_ltype temp)
-  "$cscall"
-
-
-%typemap(out) const bool &               %{ $result = *$1; %}
-%typemap(out) const char &               %{ $result = *$1; %}
-%typemap(out) const signed char &        %{ $result = *$1; %}
-%typemap(out) const unsigned char &      %{ $result = *$1; %}
-%typemap(out) const short &              %{ $result = *$1; %}
-%typemap(out) const unsigned short &     %{ $result = *$1; %}
-%typemap(out) const int &                %{ $result = *$1; %}
-%typemap(out) const unsigned int &       %{ $result = (unsigned int)*$1; %}
-%typemap(out) const long &               %{ $result = *$1; %}
-%typemap(out) const unsigned long &      %{ $result = *$1; %}
-%typemap(out) const long long &          %{ $result = *$1; %}
-%typemap(out) const unsigned long long & %{ $result = *$1; %}
-%typemap(out) const float &              %{ $result = *$1; %}
-%typemap(out) const double &             %{ $result = *$1; %}
-
-/* Default handling. Object passed by value. Convert to a pointer */
+/* Object passed by value. Convert to a pointer */
 %typemap(in, canthrow=1) SWIGTYPE ($&1_type argp)
-%{ argp = ($&1_ltype)$input; 
+%{ argp = ($&1_ltype)$input;
    if (!argp) {
-     SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "Attempt to dereference null $1_type", 0);
+     SWIG_DartSetPendingException(SWIG_DartArgumentNullError, "Attempt to dereference null $1_type");
      return $null;
    }
    $1 = *argp; %}
 
-%typemap(directorout) SWIGTYPE
-%{ if (!$input) {
-     SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "Unexpected null return for type $1_type", 0);
-     return $null;
-   }
-   $result = *($&1_ltype)$input; %}
-
-%typemap(out) SWIGTYPE 
+%typemap(out) SWIGTYPE
 #ifdef __cplusplus
 %{ $result = new $1_ltype($1); %}
 #else
@@ -418,525 +224,179 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 }
 #endif
 
-%typemap(directorin) SWIGTYPE 
+%typemap(directorin) SWIGTYPE
 %{ $input = (void *)new $1_ltype(SWIG_STD_MOVE($1)); %}
-%typemap(csdirectorin) SWIGTYPE "new $&csclassname($iminput, true)"
-%typemap(csdirectorout) SWIGTYPE "$&csclassname.getCPtr($cscall).Handle"
+%typemap(directorout, canthrow=1) SWIGTYPE
+%{ if (!$input) {
+     SWIG_DartSetPendingException(SWIG_DartArgumentNullError, "Unexpected null return for type $1_type");
+     return $null;
+   }
+   $result = *($&1_ltype)$input; %}
 
 /* Generic pointers and references */
-%typemap(in) SWIGTYPE * %{ $1 = ($1_ltype)$input; %}
-%typemap(in, fragment="SWIG_UnPackData") SWIGTYPE (CLASS::*) %{ 
-  SWIG_UnpackData($input, (void *)&$1, sizeof($1));
-%}
+%typemap(in) SWIGTYPE *, SWIGTYPE [] %{ $1 = ($1_ltype)$input; %}
 %typemap(in, canthrow=1) SWIGTYPE & %{ $1 = ($1_ltype)$input;
   if (!$1) {
-    SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "$1_type is null", 0);
+    SWIG_DartSetPendingException(SWIG_DartArgumentNullError, "$1_type is null");
     return $null;
   } %}
 %typemap(in, canthrow=1, fragment="<memory>") SWIGTYPE && (std::unique_ptr<$*1_ltype> rvrdeleter) %{ $1 = ($1_ltype)$input;
   if (!$1) {
-    SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "$1_type is null", 0);
+    SWIG_DartSetPendingException(SWIG_DartArgumentNullError, "$1_type is null");
     return $null;
   }
   rvrdeleter.reset($1); %}
-%typemap(out) SWIGTYPE * %{ $result = (void *)$1; %} 
+%typemap(in) SWIGTYPE *const& ($*1_ltype temp = 0)
+%{ temp = ($*1_ltype)$input;
+   $1 = ($1_ltype)&temp; %}
+%typemap(in, fragment="SWIG_UnPackData") SWIGTYPE (CLASS::*) %{
+  SWIG_UnpackData($input, (void *)&$1, sizeof($1));
+%}
+
+%typemap(out) SWIGTYPE *, SWIGTYPE &, SWIGTYPE && %{ $result = (void *)$1; %}
+%typemap(out) SWIGTYPE [] %{ $result = (void *)$1; %}
+%typemap(out) SWIGTYPE *const& %{ $result = (void *)*$1; %}
 %typemap(out, fragment="SWIG_PackData") SWIGTYPE (CLASS::*) %{
   char buf[128];
   char *data = SWIG_PackData(buf, (void *)&$1, sizeof($1));
   *data = '\0';
-  $result = (const char *)buf;
+  $result = SWIG_DartStrdup(buf);
 %}
-%typemap(out) SWIGTYPE & %{ $result = (void *)$1; %} 
-%typemap(out) SWIGTYPE && %{ $result = (void *)$1; %} 
 
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE *
-%{ $result = ($1_ltype)$input; %}
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE (CLASS::*)
-%{ $result = ($1_ltype)$input; %}
-
-%typemap(directorin) SWIGTYPE *
-%{ $input = (void *) $1; %}
-%typemap(directorin) SWIGTYPE (CLASS::*)
-%{ $input = (void *) $1; %}
-
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE &
-%{ if (!$input) {
-     SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "Unexpected null return for type $1_type", 0);
-     return $null;
-   }
-   $result = ($1_ltype)$input; %}
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE &&
-%{ if (!$input) {
-     SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentNullException, "Unexpected null return for type $1_type", 0);
-     return $null;
-   }
-   $result = ($1_ltype)$input; %}
-%typemap(directorin) SWIGTYPE &
-%{ $input = ($1_ltype) &$1; %}
-%typemap(directorin) SWIGTYPE &&
-%{ $input = ($1_ltype) &$1; %}
-
-%typemap(csdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "$csclassname.internal($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE & "$csclassname.internal($iminput, false)"
-%typemap(csdirectorin) SWIGTYPE && "$csclassname.internal($iminput, false)"
-%typemap(csdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$csclassname.getCPtr($cscall)"
-
-/* Default array handling */
-%typemap(in) SWIGTYPE [] %{ $1 = ($1_ltype)$input; %}
-%typemap(out) SWIGTYPE [] %{ $result = $1; %} 
-
-/* char arrays - treat as String */
-%typemap(in) char[ANY], char[] %{ $1 = ($1_ltype)$input; %}
-%typemap(out) char[ANY], char[] %{ $result = (const char *)$1; %}
-
-%typemap(directorout) char[ANY], char[] %{ $result = ($1_ltype)$input; %}
-%typemap(directorin) char[ANY], char[] %{ $input = (const char *)$1; %}
-
-%typemap(csdirectorin) char[ANY], char[] "$iminput"
-%typemap(csdirectorout) char[ANY], char[] "$cscall"
-
-
-/* Typecheck typemaps - The purpose of these is merely to issue a warning for overloaded C++ functions 
- * that cannot be overloaded in C# as more than one C++ type maps to a single C# type */
-
-%typecheck(SWIG_TYPECHECK_BOOL)
-    bool,
-    const bool &
-    ""
-
-%typecheck(SWIG_TYPECHECK_CHAR)
-    char, 
-    const char &
-    ""
-
-%typecheck(SWIG_TYPECHECK_INT8)
-    signed char,
-    const signed char &
-    ""
-
-%typecheck(SWIG_TYPECHECK_UINT8)
-    unsigned char, 
-    const unsigned char & 
-    ""
-
-%typecheck(SWIG_TYPECHECK_INT16)
-    short, 
-    const short &
-    ""
-
-%typecheck(SWIG_TYPECHECK_UINT16)
-    unsigned short, 
-    const unsigned short &
-    ""
-
-%typecheck(SWIG_TYPECHECK_INT32)
-    int, 
-    long, 
-    const int &, 
-    const long &
-    ""
-
-%typecheck(SWIG_TYPECHECK_UINT32)
-    unsigned int, 
-    unsigned long, 
-    const unsigned int &, 
-    const unsigned long &
-    ""
-
-%typecheck(SWIG_TYPECHECK_INT64)
-    long long, 
-    const long long &
-    ""
-
-%typecheck(SWIG_TYPECHECK_UINT64)
-    unsigned long long,
-    const unsigned long long &
-    ""
-
-%typecheck(SWIG_TYPECHECK_FLOAT)
-    float,
-    const float &
-    ""
-
-%typecheck(SWIG_TYPECHECK_DOUBLE)
-    double,
-    const double &
-    ""
-
-%typecheck(SWIG_TYPECHECK_STRING)
-    char *,
-    char *&,
-    char[ANY],
-    char[]
-    ""
-
-%typecheck(SWIG_TYPECHECK_POINTER)
-    SWIGTYPE, 
-    SWIGTYPE *, 
-    SWIGTYPE &, 
-    SWIGTYPE &&, 
-    SWIGTYPE *const&, 
-    SWIGTYPE [],
-    SWIGTYPE (CLASS::*)
-    ""
-
-/* Exception handling */
-
-%typemap(throws, canthrow=1) int, 
-                 long, 
-                 short, 
-                 unsigned int, 
-                 unsigned long, 
-                 unsigned short
-%{ char error_msg[256];
-   SWIG_snprintf(error_msg, sizeof(error_msg), "C++ $1_type exception thrown, value: %d", $1);
-   SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, error_msg);
-   return $null; %}
-
-%typemap(throws, canthrow=1) SWIGTYPE, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE *, SWIGTYPE [ANY]
-%{ (void)$1;
-   SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, "C++ $1_type exception thrown");
-   return $null; %}
-
-%typemap(throws, canthrow=1) char *
-%{ SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1);
-   return $null; %}
-
-
-/* Typemaps for code generation in proxy classes and C# type wrapper classes */
-
-/* The csin typemap is used for converting function parameter types from the type 
- * used in the proxy, module or type wrapper class to the type used in the PInvoke class. */
-%typemap(csin)   bool,               const bool &,
-                 char,               const char &,
-                 signed char,        const signed char &,
-                 unsigned char,      const unsigned char &,
-                 short,              const short &,
-                 unsigned short,     const unsigned short &,
-                 int,                const int &,
-                 unsigned int,       const unsigned int &,
-                 long,               const long &,
-                 unsigned long,      const unsigned long &,
-                 long long,          const long long &,
-                 unsigned long long, const unsigned long long &,
-                 float,              const float &,
-                 double,             const double &
-    "$csinput"
-%typemap(csin) char *, char *&, char[ANY], char[] "$csinput"
-%typemap(csin) SWIGTYPE "$&csclassname.getCPtr($csinput)"
-%typemap(csin) SWIGTYPE *, SWIGTYPE &, SWIGTYPE [] "$csclassname.getCPtr($csinput)"
-%typemap(csin) SWIGTYPE && "$csclassname.swigRelease($csinput)"
-%typemap(csin) SWIGTYPE (CLASS::*) "$csclassname.getCMemberPtr($csinput)"
-
-/* The csout typemap is used for converting function return types from the return type
- * used in the PInvoke class to the type returned by the proxy, module or type wrapper class.
- * The $excode special variable is replaced by the excode typemap attribute code if the
- * method can throw any exceptions from unmanaged code, otherwise replaced by nothing. */
-
-// Macro used by the $excode special variable
-%define SWIGEXCODE "\n    /*if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();*/" %enddef
-%define SWIGEXCODE2 "\n      /*if ($imclassname.SWIGPendingException.Pending) throw $imclassname.SWIGPendingException.Retrieve();*/" %enddef
-
-%typemap(csout, excode=SWIGEXCODE) bool,               const bool &               {
-    bool ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) char,               const char &               {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) signed char,        const signed char &        {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) unsigned char,      const unsigned char &      {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) short,              const short &              {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) unsigned short,     const unsigned short &     {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) int,                const int &                {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) unsigned int,       const unsigned int &       {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) long,               const long &               {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) unsigned long,      const unsigned long &      {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) long long,          const long long &          {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) unsigned long long, const unsigned long long & {
-    int ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) float,              const float &              {
-    double ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) double,             const double &             {
-    double ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) char *, char *&, char[ANY], char[] {
-    String ret = $imcall;$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) void {
-    $imcall;$excode
-  }
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE {
-    $&csclassname ret = $&csclassname.internal($imcall, true);$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE & {
-    $csclassname ret = $csclassname.internal($imcall, $owner);$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE && {
-    $csclassname ret = $csclassname.internal($imcall, $owner);$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE *, SWIGTYPE [] {
-    ffi.Pointer<ffi.Void> cPtr = $imcall;
-    $csclassname ret = $csclassname.internal(cPtr, $owner);$excode
-    return ret;
-  }
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*) {
-    String cMemberPtr = $imcall;
-    $csclassname ret = $csclassname.internal(cMemberPtr, $owner);$excode
-    return ret;
-  }
-
-
-/* Properties */
-%typemap(csvarin, excode=SWIGEXCODE2) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) %{
-    set $varname ($paramtype value) {
-      $imcall;$excode
-    }  %}
-
-%typemap(csvarin, excode=SWIGEXCODE2) char *, char *&, char[ANY], char[] %{
-    set $varname ($paramtype value) {
-      $imcall;$excode
-    } %}
-
-%typemap(csvarout, excode=SWIGEXCODE2) bool,               const bool &               %{
-    $returntype get $varname {
-      bool ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) char,               const char &               %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) signed char,        const signed char &        %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) unsigned char,      const unsigned char &      %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) short,              const short &              %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) unsigned short,     const unsigned short &     %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) int,                const int &                %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) unsigned int,       const unsigned int &       %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) long,               const long &               %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) unsigned long,      const unsigned long &      %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) long long,          const long long &          %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) unsigned long long, const unsigned long long & %{
-    $returntype get $varname {
-      int ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) float,              const float &              %{
-    $returntype get $varname {
-      double ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) double,             const double &             %{
-    $returntype get $varname {
-      double ret = $imcall;$excode
-      return ret;
-    } %}
-
-
-%typemap(csvarout, excode=SWIGEXCODE2) char *, char *&, char[ANY], char[] %{
-    $returntype get $varname {
-      String ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) void %{
-    $returntype get $varname {
-      $imcall;$excode
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE %{
-    $returntype get $varname {
-      $&csclassname ret = $&csclassname($imcall, true);$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE & %{
-    $returntype get $varname {
-      $csclassname ret = $csclassname($imcall, $owner);$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE && %{
-    $returntype get $varname {
-      $csclassname ret = $csclassname($imcall, $owner);$excode
-      return ret;
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE *, SWIGTYPE [] %{
-    $returntype get $varname {
-      ffi.Pointer<ffi.Void> cPtr = $imcall;
-      $csclassname ret = $csclassname.internal(cPtr, $owner);$excode
-      return ret;
-    } %}
-
-%typemap(csvarout, excode=SWIGEXCODE2) SWIGTYPE (CLASS::*) %{
-    $returntype get $varname {
-      String cMemberPtr = $imcall;
-      $csclassname ret = (cMemberPtr == null) ? null : $csclassname(cMemberPtr, $owner);$excode
-      return ret;
-    } %}
-
-/* Pointer reference typemaps */
-%typemap(ctype) SWIGTYPE *const& "void *"
-%typemap(imtype) SWIGTYPE *const& "ffi.Pointer<ffi.Void>"
-%typemap(cstype) SWIGTYPE *const& "$*csclassname"
-%typemap(csin) SWIGTYPE *const& "$*csclassname.getCPtr($csinput)"
-%typemap(csout, excode=SWIGEXCODE) SWIGTYPE *const& {
-    ffi.Pointer<ffi.Void> cPtr = $imcall;
-    $*csclassname ret = $*csclassname.internal(cPtr, $owner);$excode
-    return ret;
-  }
-%typemap(csvarout, excode=SWIGEXCODE) SWIGTYPE *const& %{
-    get {
-      ffi.Pointer<ffi.Void> cPtr = $imcall;
-      $*csclassname ret = $*csclassname.internal(cPtr, $owner);$excode
-      return ret;
-    } %}
-
-%typemap(in) SWIGTYPE *const& ($*1_ltype temp = 0)
-%{ temp = ($*1_ltype)$input;
-   $1 = ($1_ltype)&temp; %}
-%typemap(out) SWIGTYPE *const&
-%{ $result = (void *)*$1; %} 
-%typemap(directorin) SWIGTYPE *const&
-%{ $input = (void *) $1; %}
+%typemap(directorin) SWIGTYPE *, SWIGTYPE (CLASS::*) %{ $input = (void *) $1; %}
+%typemap(directorin) SWIGTYPE *const& %{ $input = (void *) $1; %}
+%typemap(directorin) SWIGTYPE &, SWIGTYPE && %{ $input = ($1_ltype) &$1; %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE *, SWIGTYPE (CLASS::*) %{ $result = ($1_ltype)$input; %}
 %typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) SWIGTYPE *const&
 %{ static $*1_ltype swig_temp;
    swig_temp = ($*1_ltype)$input;
    $result = &swig_temp; %}
-%typemap(csdirectorin) SWIGTYPE *const& "($iminput == global::System.IntPtr.Zero) ? null : new $*csclassname($iminput, false)"
-%typemap(csdirectorout) SWIGTYPE *const& "$*csclassname.getCPtr($cscall).Handle"
+%typemap(directorout, canthrow=1, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE &, SWIGTYPE &&
+%{ if (!$input) {
+     SWIG_DartSetPendingException(SWIG_DartArgumentNullError, "Unexpected null return for type $1_type");
+     return $null;
+   }
+   $result = ($1_ltype)$input; %}
 
-/* Marshal C/C++ pointer to global::System.IntPtr */
-%typemap(ctype) void *VOID_INT_PTR "void *"
-%typemap(imtype) void *VOID_INT_PTR "global::System.IntPtr"
-%typemap(cstype) void *VOID_INT_PTR "global::System.IntPtr"
-%typemap(in) void *VOID_INT_PTR %{ $1 = ($1_ltype)$input; %}
-%typemap(out) void *VOID_INT_PTR %{ $result = (void *)$1; %} 
-%typemap(csin) void *VOID_INT_PTR "$csinput"
-%typemap(csout, excode=SWIGEXCODE) void *VOID_INT_PTR {
-    ffi.Pointer<ffi.Void> ret = $imcall;$excode
-    return ret;
+%typemap(dartin) SWIGTYPE "$&dartclassname.swigGetCPtr($dartinput)"
+%typemap(dartin) SWIGTYPE *, SWIGTYPE &, SWIGTYPE [] "$dartclassname.swigGetCPtr($dartinput)"
+%typemap(dartin) SWIGTYPE && "$dartclassname.swigRelease($dartinput)"
+%typemap(dartin) SWIGTYPE *const& "$*dartclassname.swigGetCPtr($dartinput)"
+%typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($dartclassname.swigGetCMemberPtr($dartinput));",
+         post="      $imclassname.swigFree(swig_$dartinput);") SWIGTYPE (CLASS::*) "swig_$dartinput"
+
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE {
+    final ffi.Pointer<ffi.Void> cPtr = $imcall;$excode
+    return $&dartclassname.swigFromPtr(cPtr, true);
   }
-%typemap(csvarin, excode=SWIGEXCODE2) void *VOID_INT_PTR %{
-    set {
-      $imcall;$excode
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) void *VOID_INT_PTR %{
-    get {
-      ffi.Pointer<ffi.Void> ret = $imcall;$excode
-      return ret;
-    } %}
-%typemap(csdirectorin) void *VOID_INT_PTR "$iminput"
-%typemap(csdirectorout) void *VOID_INT_PTR "$cscall"
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE &, SWIGTYPE && {
+    final ffi.Pointer<ffi.Void> cPtr = $imcall;$excode
+    return $dartclassname.swigFromPtr(cPtr, $owner);
+  }
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE *, SWIGTYPE [] {
+    final ffi.Pointer<ffi.Void> cPtr = $imcall;$excode
+    return (cPtr == ffi.nullptr) ? null : $dartclassname.swigFromPtr(cPtr, $owner);
+  }
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE *const& {
+    final ffi.Pointer<ffi.Void> cPtr = $imcall;$excode
+    return (cPtr == ffi.nullptr) ? null : $*dartclassname.swigFromPtr(cPtr, $owner);
+  }
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*) {
+    final String? cMemberPtr = $imclassname.swigFromNativeStringAndFree($imcall);$excode
+    return (cMemberPtr == null) ? null : $dartclassname.swigFromCMemberPtr(cMemberPtr, $owner);
+  }
+
+%typemap(dartdirectorin) SWIGTYPE "$&dartclassname.swigFromPtr($iminput, true)"
+%typemap(dartdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "(($iminput == ffi.nullptr) ? null : $dartclassname.swigFromPtr($iminput, false))"
+%typemap(dartdirectorin) SWIGTYPE &, SWIGTYPE && "$dartclassname.swigFromPtr($iminput, false)"
+%typemap(dartdirectorin) SWIGTYPE *const& "(($iminput == ffi.nullptr) ? null : $*dartclassname.swigFromPtr($iminput, false))"
+%typemap(dartdirectorout) SWIGTYPE "$&dartclassname.swigGetCPtr($dartcall)"
+%typemap(dartdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$dartclassname.swigGetCPtr($dartcall)"
+%typemap(dartdirectorout) SWIGTYPE *const& "$*dartclassname.swigGetCPtr($dartcall)"
+
+/* Typecheck typemaps - The purpose of these is merely to issue a warning for overloaded C++ functions
+ * that cannot be overloaded in Dart as more than one C++ type maps to a single Dart type */
+
+%typecheck(SWIG_TYPECHECK_BOOL) bool, const bool & ""
+%typecheck(SWIG_TYPECHECK_CHAR) char, const char & ""
+%typecheck(SWIG_TYPECHECK_INT8) signed char, const signed char & ""
+%typecheck(SWIG_TYPECHECK_UINT8) unsigned char, const unsigned char & ""
+%typecheck(SWIG_TYPECHECK_INT16) short, const short & ""
+%typecheck(SWIG_TYPECHECK_UINT16) unsigned short, const unsigned short & ""
+%typecheck(SWIG_TYPECHECK_INT32) int, long, const int &, const long & ""
+%typecheck(SWIG_TYPECHECK_UINT32) unsigned int, unsigned long, const unsigned int &, const unsigned long & ""
+%typecheck(SWIG_TYPECHECK_INT64) long long, const long long & ""
+%typecheck(SWIG_TYPECHECK_UINT64) unsigned long long, const unsigned long long & ""
+%typecheck(SWIG_TYPECHECK_SIZE) size_t, const size_t & ""
+%typecheck(SWIG_TYPECHECK_FLOAT) float, const float & ""
+%typecheck(SWIG_TYPECHECK_DOUBLE) double, const double & ""
+%typecheck(SWIG_TYPECHECK_STRING) char *, char *&, char[ANY], char[] ""
+%typecheck(SWIG_TYPECHECK_POINTER) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE *const&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+
+/* Exception handling */
+
+%typemap(throws, canthrow=1) int,
+                 long,
+                 short,
+                 unsigned int,
+                 unsigned long,
+                 unsigned short
+%{ char error_msg[256];
+   SWIG_snprintf(error_msg, sizeof(error_msg), "C++ $1_type exception thrown, value: %d", (int)$1);
+   SWIG_DartSetPendingException(SWIG_DartException, error_msg);
+   return $null; %}
+
+%typemap(throws, canthrow=1) SWIGTYPE, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE *, SWIGTYPE [ANY]
+%{ (void)$1;
+   SWIG_DartSetPendingException(SWIG_DartException, "C++ $1_type exception thrown");
+   return $null; %}
+
+%typemap(throws, canthrow=1) char *
+%{ SWIG_DartSetPendingException(SWIG_DartException, $1);
+   return $null; %}
 
 /* Typemaps used for the generation of proxy and type wrapper class code */
-%typemap(csbase)                      SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
-%typemap(csclassmodifiers)            SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "class"
-%typemap(cscode)                      SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
-%typemap(csinterfaces)                SWIGTYPE ""
-%typemap(csinterfaces)                          SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
-%typemap(csinterfaces_derived)        SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
-%typemap(csinterfacemodifiers)        SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "abstract interface"
+%typemap(dartbase)                    SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+%typemap(dartclassmodifiers)          SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) "class"
+%typemap(dartcode)                    SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+%typemap(dartimports)                 SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+%typemap(dartinterfaces)              SWIGTYPE "ffi.Finalizable"
+%typemap(dartinterfaces)              SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+%typemap(dartinterfaces_derived)      SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
 
+/* dartbody typemaps for the proxy classes.
+ * Each proxy class stores the pointer to its C++ class type in its own field as a derived C++ class
+ * pointer is not necessarily the same address as its base class pointer.
+ * swigFromPtr is the constructor used to wrap an existing C/C++ pointer, which takes ownership
+ * of the C++ object if cMemoryOwn is true. swigDerived is used by derived classes so that only the
+ * most derived class attaches a finalizer and deletes the C++ object. */
 
-// csbody typemaps... these are in macros so that the visibility of the methods can be easily changed by users.
-
-%define SWIG_CSBODY_PROXY(TYPE...)
 // Proxy classes (base classes, ie, not derived classes)
-%typemap(csbody) TYPE %{
-  ffi.Pointer<ffi.Void> _swigCPtr;
+%typemap(dartbody) SWIGTYPE %{
+  ffi.Pointer<ffi.Void> _swigCPtr_$dartclassname;
   bool swigCMemOwn;
-  static final Finalizer<ffi.Pointer<ffi.Void>> _finalizer
-    = Finalizer((ptr) => $moduleFFI().delete_$csclassname(ptr));
+  static final ffi.NativeFinalizer? _swigFinalizer = $finalizer;
 
-  $csclassname.internal(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn) :
-    swigCMemOwn = cMemoryOwn,
-    _swigCPtr = cPtr
-  {
-    if (swigCMemOwn) {
-      _finalizer.attach(this, _swigCPtr, detach: this);
+  $dartclassname.swigFromPtr(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn) : _swigCPtr_$dartclassname = cPtr, swigCMemOwn = cMemoryOwn {
+    if (cMemoryOwn) {
+      _swigFinalizer?.attach(this, cPtr, detach: this);
+    }$directorconnect
+  }
+
+  $dartclassname.swigDerived(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn) : _swigCPtr_$dartclassname = cPtr, swigCMemOwn = cMemoryOwn;
+
+  static ffi.Pointer<ffi.Void> swigGetCPtr($dartclassname? obj) {
+    return (obj == null) ? ffi.nullptr : obj._swigCPtr_$dartclassname;
+  }
+
+  static ffi.Pointer<ffi.Void> swigRelease($dartclassname? obj) {
+    if (obj == null) {
+      return ffi.nullptr;
     }
-  }
-
-  static ffi.Pointer<ffi.Void> getCPtr($csclassname obj) {
-    return obj._swigCPtr;
-  }
-
-  static ffi.Pointer<ffi.Void> swigRelease($csclassname obj) {
     if (!obj.swigCMemOwn) {
-      throw Exception("Cannot release ownership as memory is not owned");
+      throw StateError('Cannot release ownership as memory is not owned');
     }
-    ffi.Pointer<ffi.Void> ptr = obj._swigCPtr;
+    final ffi.Pointer<ffi.Void> ptr = obj._swigCPtr_$dartclassname;
     obj.swigCMemOwn = false;
     obj.dispose();
     return ptr;
@@ -944,151 +404,96 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %}
 
 // Derived proxy classes
-%typemap(csbody_derived) TYPE %{
-  ffi.Pointer<ffi.Void> _swigCPtr;
+%typemap(dartbody_derived) SWIGTYPE %{
+  ffi.Pointer<ffi.Void> _swigCPtr_$dartclassname;
+  static final ffi.NativeFinalizer? _swigFinalizer = $finalizer;
 
-  $csclassname.internal(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn)
-    : _swigCPtr = cPtr
-    , super.internal($moduleFFI().$csclazznameSWIGUpcast(cPtr), cMemoryOwn)
-  {
+  $dartclassname.swigFromPtr(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn) : _swigCPtr_$dartclassname = cPtr, super.swigDerived($imclassname().$dartclazznameSWIGUpcast(cPtr), cMemoryOwn) {
+    if (cMemoryOwn) {
+      _swigFinalizer?.attach(this, cPtr, detach: this);
+    }$directorconnect
   }
 
-  static ffi.Pointer<ffi.Void> getCPtr($csclassname obj) {
-    return obj._swigCPtr;
+  $dartclassname.swigDerived(ffi.Pointer<ffi.Void> cPtr, bool cMemoryOwn) : _swigCPtr_$dartclassname = cPtr, super.swigDerived($imclassname().$dartclazznameSWIGUpcast(cPtr), cMemoryOwn);
+
+  static ffi.Pointer<ffi.Void> swigGetCPtr($dartclassname? obj) {
+    return (obj == null) ? ffi.nullptr : obj._swigCPtr_$dartclassname;
   }
 
-  static ffi.Pointer<ffi.Void> swigRelease($csclassname obj) {
-    if (!obj.swigCMemOwn) {
-      throw Exception("Cannot release ownership as memory is not owned");
+  static ffi.Pointer<ffi.Void> swigRelease($dartclassname? obj) {
+    if (obj == null) {
+      return ffi.nullptr;
     }
-    ffi.Pointer<ffi.Void> ptr = obj._swigCPtr;
+    if (!obj.swigCMemOwn) {
+      throw StateError('Cannot release ownership as memory is not owned');
+    }
+    final ffi.Pointer<ffi.Void> ptr = obj._swigCPtr_$dartclassname;
     obj.swigCMemOwn = false;
     obj.dispose();
     return ptr;
   }
 %}
-%enddef
 
-%define SWIG_CSBODY_TYPEWRAPPER(PTRCTOR_VISIBILITY, DEFAULTCTOR_VISIBILITY, CPTR_VISIBILITY, TYPE...)
-// Typewrapper classes
-%typemap(csbody) TYPE *, TYPE &, TYPE &&, TYPE [] %{
-  ffi.Pointer<ffi.Void> swigCPtr;
+// Type wrapper classes
+%typemap(dartbody) SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE [] %{
+  final ffi.Pointer<ffi.Void> _swigCPtr;
 
-  $csclassname.internal(ffi.Pointer<ffi.Void> cPtr, bool futureUse)
-    : swigCPtr = cPtr {
-  }
+  $dartclassname.swigFromPtr(ffi.Pointer<ffi.Void> cPtr, bool futureUse) : _swigCPtr = cPtr;
 
-  $csclassname() 
-    : swigCPtr = ffi.Pointer<ffi.Void>.fromAddress(0) {
-  }
-
-  static ffi.Pointer<ffi.Void> getCPtr($csclassname obj) {
-    return obj.swigCPtr;
-  }
-
-  static ffi.Pointer<ffi.Void> swigRelease($csclassname obj) {
-    return obj.swigCPtr;
+  static ffi.Pointer<ffi.Void> swigGetCPtr($dartclassname? obj) {
+    return (obj == null) ? ffi.nullptr : obj._swigCPtr;
   }
 %}
 
-%typemap(csbody) TYPE (CLASS::*) %{
-  private string swigCMemberPtr;
+// Type wrapper classes for pointers to class members
+%typemap(dartbody) SWIGTYPE (CLASS::*) %{
+  final String _swigCMemberPtr;
 
-  PTRCTOR_VISIBILITY $csclassname(string cMemberPtr, bool futureUse) {
-    swigCMemberPtr = cMemberPtr;
-  }
+  $dartclassname.swigFromCMemberPtr(String cMemberPtr, bool futureUse) : _swigCMemberPtr = cMemberPtr;
 
-  DEFAULTCTOR_VISIBILITY $csclassname() {
-    swigCMemberPtr = null;
-  }
-
-  CPTR_VISIBILITY static string getCMemberPtr($csclassname obj) {
-    return obj.swigCMemberPtr;
+  static String? swigGetCMemberPtr($dartclassname? obj) {
+    return obj?._swigCMemberPtr;
   }
 %}
-%enddef
 
-/* Set the default csbody typemaps to use internal visibility.
-   Use the macros to change to public if using multiple modules. */
-SWIG_CSBODY_PROXY(internal, SWIGTYPE)
-SWIG_CSBODY_TYPEWRAPPER(internal, protected, internal, SWIGTYPE)
-
-%typemap(csdispose) SWIGTYPE %{
+/* The dispose method deletes the C++ object if it is owned. $imcall is replaced by the C++ destructor call */
+%typemap(dartdispose) SWIGTYPE %{
   void dispose() {
-    disposeIfValid(true);
-    _finalizer.detach(this);
-  }
-%}
-
-%typemap(csdispose_derived) SWIGTYPE ""
-
-%typemap(csconstruct, excode=SWIGEXCODE,directorconnect="_swigDirectorConnect();") SWIGTYPE %{
-  : _swigCPtr = $imcall,
-    swigCMemOwn = true
-  {
-    _finalizer.attach(this, _swigCPtr, detach: this);
-    $directorconnect
-  }
-%}
-
-%typemap(csconstruct_derived, excode=SWIGEXCODE,directorconnect="_swigDirectorConnect();") SWIGTYPE %{
-  : _swigCPtr = $imcall
-  {
-    $directorconnect
-  }
-%}
-
-%typemap(csdisposing, methodname="disposeIfValid", methodmodifiers="", parameters="bool disposing") SWIGTYPE {
-    if (_swigCPtr != ffi.Pointer<ffi.Void>.fromAddress(0)) {
-      if (swigCMemOwn) {
-        swigCMemOwn = false;
-        $imcall;
-      }
-      _swigCPtr = ffi.Pointer<ffi.Void>.fromAddress(0);
+    if (swigCMemOwn) {
+      swigCMemOwn = false;
+      _swigFinalizer?.detach(this);
+      $imcall;
     }
-  }
-
-%typemap(csdisposing_derived, methodname="disposeIfValid", methodmodifiers="", parameters="bool disposing") SWIGTYPE {
-    if (_swigCPtr != ffi.Pointer<ffi.Void>.fromAddress(0)) {
-      if (swigCMemOwn) {
-        swigCMemOwn = false;
-        $imcall;
-      }
-      _swigCPtr = ffi.Pointer<ffi.Void>.fromAddress(0);
-    }
-    super.disposeIfValid(disposing);
-  }
-
-%typemap(directordisconnect, methodname="swigDirectorDisconnect") SWIGTYPE %{
-  protected void $methodname() {
-    swigCMemOwn = false;
-    $imcall;
+    _swigCPtr_$dartclassname = ffi.nullptr;
   }
 %}
 
-/* C# specific directives */
-#define %csconst(flag)              %feature("cs:const","flag")
-#define %csconstvalue(value)        %feature("cs:constvalue",value)
-#define %csenum(wrapapproach)       %feature("cs:enum","wrapapproach")
-#define %csmethodmodifiers          %feature("cs:methodmodifiers")
-#define %csnothrowexception         %feature("except")
-#define %csattributes               %feature("cs:attributes")
+%typemap(dartdispose_derived) SWIGTYPE %{
+  @override
+  void dispose() {
+    if (swigCMemOwn) {
+      swigCMemOwn = false;
+      _swigFinalizer?.detach(this);
+      $imcall;
+    }
+    _swigCPtr_$dartclassname = ffi.nullptr;
+    super.dispose();
+  }
+%}
+
+/* Constructors call the swigFromPtr constructor with the pointer to the newly created C++ object */
+%typemap(dartconstruct, excode=SWIGEXCODE) SWIGTYPE "this.swigFromPtr($imcall, true)"
+
+/* Dart specific directives */
+#define %dartconst(flag)            %feature("dart:const","flag")
+#define %dartconstvalue(value)      %feature("dart:constvalue",value)
+#define %dartenum(wrapapproach)     %feature("dart:enum","wrapapproach")
+#define %dartmethodmodifiers        %feature("dart:methodmodifiers")
+#define %dartnothrowexception       %feature("except")
 #define %proxycode                  %insert("proxycode")
 
-%pragma(csharp) imclassclassmodifiers="class"
-%pragma(csharp) moduleclassmodifiers="class"
-
-/* 64-bit architecture specific typemaps */
-#if defined(SWIGWORDSIZE64)
-%apply long long { long };
-%apply unsigned long long { unsigned long };
-%apply const long long & { const long & };
-%apply const unsigned long long & { const unsigned long & };
-#endif
-
-/* size_t maps to C# 32-bit uint type */
-%apply unsigned int { size_t };
-%apply const unsigned int & { const size_t & };
+%pragma(dart) imclassclassmodifiers="final class"
+%pragma(dart) moduleclassmodifiers="abstract final class"
 
 /* Array reference typemaps */
 %apply SWIGTYPE & { SWIGTYPE ((&)[ANY]) }
@@ -1100,178 +505,15 @@ SWIG_CSBODY_TYPEWRAPPER(internal, protected, internal, SWIGTYPE)
 %apply SWIGTYPE & { SWIGTYPE (CLASS::*const&) }
 
 /* String & length */
-%fragment("SWIG_csharp_string", "header") %{
-#ifdef __cplusplus
-extern "C" {
-#endif
-typedef struct { int len; int size; char* str; } SWIG_csharp_string;
-
-SWIGEXPORT void* SWIGSTDCALL SWIG_csharp_string_to_c(int size, int len, char *str) {
-  SWIG_csharp_string *ret;
-  ret = (SWIG_csharp_string *)malloc(sizeof(SWIG_csharp_string));
-  if (ret == NULL) {
-    SWIG_CSharpSetPendingException(SWIG_CSharpOutOfMemoryException, "fail to duplicate string container.");
-    return NULL;
-  }
-  if (size > 0) {
-    /* The string is in UTF8 encoding */
-    ret->str = (char *)malloc(size + 1);
-    if (ret->str == NULL) {
-      SWIG_CSharpSetPendingException(SWIG_CSharpOutOfMemoryException, "fail to duplicate string.");
-      free(ret);
-      return NULL;
-    }
-    memcpy(ret->str, str, size + 1);
-    ret->size = size; /* number of bytes in the UTF8 encoding */
-    ret->len = len;   /* number of characters in string */
-  } else {
-    ret->str = NULL;
-    ret->size = 0;
-    ret->len = 0;
-  }
-  return ret;
-}
-SWIGEXPORT int SWIGSTDCALL SWIG_csharp_string_size(SWIG_csharp_string *p) {
-  if (p) {
-    return p->size;
-  }
-  return 0;
-}
-SWIGEXPORT char *SWIGSTDCALL SWIG_csharp_string_str(SWIG_csharp_string *p) {
-  if (p) {
-    char *ret = p->str;
-    free(p);
-    return ret;
-  }
-  return NULL;
-}
-
-#ifdef __cplusplus
-}
-#endif
-%}
-
-/* String & length typemap */
-
-%typemap(cstype) (const char *STRING, size_t LENGTH) "string"
-%typemap(ctype)  (const char *STRING, size_t LENGTH) "void *"
-%typemap(imtype) (const char *STRING, size_t LENGTH) "global::System.IntPtr"
-%typemap(csin)   (const char *STRING, size_t LENGTH) "$modulePINVOKE.SWIGStringWithLengthHelper.SWIG_csharp_string_to_c($csinput)"
-%typemap(in, canthrow=1, fragment="SWIG_csharp_string") (const char *STRING, size_t LENGTH) {
-  SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-  if (p) {
-    $1 = ($1_ltype)p->str;
-    $2 = ($2_ltype)p->size; /* We use number of bytes */
-  } else {
-    $1 = 0;
-    $2 = 0;
-  }
-}
-%typemap(freearg, fragment="SWIG_csharp_string") (const char *STRING, size_t LENGTH) {
-  SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-  if (p) {
-    free(p->str);
-    free(p);
-  }
-}
-%typecheck(SWIG_TYPECHECK_STRING) (const char *STRING, size_t LENGTH) ""
-
-%typemap(directorin) (const char *STRING, size_t LENGTH) %{
-  if ($1 && $2 > 0) {
-    $input = malloc(sizeof(SWIG_csharp_string));
-    if ($input) {
-      SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-      p->str = (char *)$1;
-      p->size = (int)$2;
-    }
-  }
-%}
-%typemap(csdirectorin) (const char *STRING, size_t LENGTH) "$modulePINVOKE.SWIGStringWithLengthHelper.SWIG_c_to_csharp_string($iminput)"
-
-%apply (const char *STRING, size_t LENGTH) { (char *STRING, size_t LENGTH) }
-%apply (const char *STRING, size_t LENGTH) { (const char *STRING, int LENGTH) }
+%typemap(ctype)    (char *STRING, size_t LENGTH) "char *"
+%typemap(ffitype)  (char *STRING, size_t LENGTH) "ffi.Pointer<ffi.Uint8>"
+%typemap(imtype)   (char *STRING, size_t LENGTH) "ffi.Pointer<ffi.Uint8>"
+%typemap(darttype) (char *STRING, size_t LENGTH) "String?"
+%typemap(in)       (char *STRING, size_t LENGTH) %{ $1 = ($1_ltype)$input;
+  $2 = $1 ? ($2_ltype)strlen((const char *)$1) : 0; %}
+%typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($dartinput);",
+         post="      $imclassname.swigFree(swig_$dartinput);") (char *STRING, size_t LENGTH) "swig_$dartinput"
 %apply (char *STRING, size_t LENGTH) { (char *STRING, int LENGTH) }
 
-/* Length & string reverse order typemap */
-
-%typemap(cstype) (size_t LENGTH, const char *STRING) "string"
-%typemap(ctype)  (size_t LENGTH, const char *STRING) "void *"
-%typemap(imtype) (size_t LENGTH, const char *STRING) "global::System.IntPtr"
-%typemap(csin)   (size_t LENGTH, const char *STRING) "$modulePINVOKE.SWIGStringWithLengthHelper.SWIG_csharp_string_to_c($csinput)"
-%typemap(in, canthrow=1, fragment="SWIG_csharp_string") (size_t LENGTH, const char *STRING) {
-  SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-  if (p) {
-    $2 = ($2_ltype)p->str;
-    $1 = ($1_ltype)p->size; /* We use number of bytes */
-  } else {
-    $1 = 0;
-    $2 = 0;
-  }
-}
-%typemap(freearg, fragment="SWIG_csharp_string") (size_t LENGTH, const char *STRING) {
-  SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-  if (p) {
-    free(p->str);
-    free(p);
-  }
-}
-%typecheck(SWIG_TYPECHECK_STRING) (size_t LENGTH, const char *STRING) ""
-
-%typemap(directorin) (size_t LENGTH, const char *STRING) %{
-  if ($2 && $1 > 0) {
-    $input = malloc(sizeof(SWIG_csharp_string));
-    if ($input) {
-      SWIG_csharp_string *p = (SWIG_csharp_string *)$input;
-      p->str = (char *)$2;
-      p->size = (int)$1;
-    }
-  }
-%}
-%typemap(csdirectorin) (size_t LENGTH, const char *STRING) "$modulePINVOKE.SWIGStringWithLengthHelper.SWIG_c_to_csharp_string($iminput)"
-
-%apply (size_t LENGTH, const char *STRING) { (size_t LENGTH, char *STRING) }
-%apply (size_t LENGTH, const char *STRING) { (int LENGTH, const char *STRING) }
-%apply (size_t LENGTH, char *STRING) { (int LENGTH, char *STRING) }
-
-/* csharp keywords */
-%include <csharpkw.swg>
-
-// Default enum handling
+%include <dartkw.swg>
 %include <enums.swg>
-
-// For vararg handling in macros, from swigmacros.swg
-#define %arg(X...) X
-
-/*
-// Alternative char * typemaps.
-%pragma(csharp) imclasscode=%{
-  public class SWIGStringMarshal : global::System.IDisposable {
-    public readonly global::System.Runtime.InteropServices.HandleRef swigCPtr;
-    public SWIGStringMarshal(string str) {
-      swigCPtr = new global::System.Runtime.InteropServices.HandleRef(this, global::System.Runtime.InteropServices.Marshal.StringToHGlobalAnsi(str));
-    }
-    void dispose() {
-      global::System.Runtime.InteropServices.Marshal.FreeHGlobal(swigCPtr.Handle);
-      global::System.GC.SuppressFinalize(this);
-    }
-  }
-%}
-
-%typemap(imtype, out="global::System.IntPtr") char *, char[ANY], char[]   "global::System.Runtime.InteropServices.HandleRef"
-%typemap(out) char *, char[ANY], char[] %{ $result = $1; %}
-%typemap(csin) char *, char[ANY], char[] "new $imclassname.SWIGStringMarshal($csinput).swigCPtr"
-%typemap(csout, excode=SWIGEXCODE) char *, char[ANY], char[] {
-    String ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
-    return ret;
-  }
-%typemap(csvarin, excode=SWIGEXCODE2) char *, char[ANY], char[] %{
-    set {
-      $imcall;$excode
-    } %}
-%typemap(csvarout, excode=SWIGEXCODE2) char *, char[ANY], char[] %{
-    get {
-      String ret = global::System.Runtime.InteropServices.Marshal.PtrToStringAnsi($imcall);$excode
-      return ret;
-    } %}
-*/
-

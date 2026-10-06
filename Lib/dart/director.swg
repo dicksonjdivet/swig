@@ -1,7 +1,7 @@
 /* -----------------------------------------------------------------------------
  * director.swg
  *
- * This file contains support for director classes so that C# proxy
+ * This file contains support for director classes so that Dart proxy
  * methods can be called from C++.
  * ----------------------------------------------------------------------------- */
 
@@ -12,7 +12,7 @@
 #include <exception>
 
 namespace Swig {
-  /* Director base class - not currently used in C# directors */
+  /* Director base class - not currently used in Dart directors */
   class Director {
   };
 

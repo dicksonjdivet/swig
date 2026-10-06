@@ -11,22 +11,21 @@
 #include <stdexcept>
 %}
 
-namespace std 
+namespace std
 {
   %ignore exception;
   struct exception {};
 }
 
-%typemap(throws, canthrow=1) std::bad_cast          "SWIG_CSharpSetPendingException(SWIG_CSharpInvalidCastException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::bad_exception     "SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::domain_error      "SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::exception         "SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::invalid_argument  "SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentException, $1.what(), \"\");\n return $null;"
-%typemap(throws, canthrow=1) std::length_error      "SWIG_CSharpSetPendingException(SWIG_CSharpIndexOutOfRangeException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::logic_error       "SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::out_of_range      "SWIG_CSharpSetPendingExceptionArgument(SWIG_CSharpArgumentOutOfRangeException, 0, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::overflow_error    "SWIG_CSharpSetPendingException(SWIG_CSharpOverflowException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::range_error       "SWIG_CSharpSetPendingException(SWIG_CSharpIndexOutOfRangeException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::runtime_error     "SWIG_CSharpSetPendingException(SWIG_CSharpApplicationException, $1.what());\n return $null;"
-%typemap(throws, canthrow=1) std::underflow_error   "SWIG_CSharpSetPendingException(SWIG_CSharpOverflowException, $1.what());\n return $null;"
-
+%typemap(throws, canthrow=1) std::bad_cast        "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::bad_exception   "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::domain_error    "SWIG_DartSetPendingException(SWIG_DartArgumentError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::exception       "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::invalid_argument "SWIG_DartSetPendingException(SWIG_DartArgumentError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::length_error    "SWIG_DartSetPendingException(SWIG_DartRangeError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::logic_error     "SWIG_DartSetPendingException(SWIG_DartStateError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::out_of_range    "SWIG_DartSetPendingException(SWIG_DartRangeError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::overflow_error  "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::range_error     "SWIG_DartSetPendingException(SWIG_DartRangeError, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::runtime_error   "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"
+%typemap(throws, canthrow=1) std::underflow_error "SWIG_DartSetPendingException(SWIG_DartException, $1.what());\n return $null;"

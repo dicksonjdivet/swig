@@ -18,6 +18,7 @@
 
 %include <csharp/csharpkw.swg>
 %include <d/dkw.swg>
+%include <dart/dartkw.swg>
 %include <go/gokw.swg>
 %include <java/javakw.swg>
 %include <javascript/javascriptkw.swg>
