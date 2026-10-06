@@ -116,6 +116,9 @@ jobs:
         - SWIGLANG: d
           VER: '2.103.1'
           CPPSTD: c++17
+        - SWIGLANG: dart
+          VER: '3.0.7' # oldest supported version
+          continue-on-error: true # experimental target language
         - SWIGLANG: go
           VER: '1.20'
           CSTD: gnu11
@@ -454,6 +457,11 @@ jobs:
           CPPSTD: c++20
           GCC: 13
           os: ubuntu-24.04
+        - SWIGLANG: dart
+          CPPSTD: c++20
+          GCC: 13
+          os: ubuntu-24.04
+          continue-on-error: true # experimental target language
         - SWIGLANG: python
           CPPSTD: c++20
           GCC: 13

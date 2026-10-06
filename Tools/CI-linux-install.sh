@@ -47,6 +47,14 @@ case "$SWIGLANG" in
 			$RETRY sudo apt-get -qq install "$VER"
 		fi
 		;;
+	"dart")
+		# Dart SDK from the Dart archive, VER is the Dart SDK version, the latest stable release is used if not set
+		dart_release=${VER:-latest}
+		$RETRY wget -q "https://storage.googleapis.com/dart-archive/channels/stable/release/$dart_release/sdk/dartsdk-linux-x64-release.zip"
+		unzip -q dartsdk-linux-x64-release.zip -d "$HOME"
+		update_path "$HOME/dart-sdk/bin"
+		"$HOME/dart-sdk/bin/dart" --version
+		;;
 	"go")
 		if [[ "$VER" ]]; then
 			# Check if Go is already installed on cached tools
