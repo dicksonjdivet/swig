@@ -52,7 +52,6 @@ FAILING_CPP_TESTS := \
 	li_typemaps_apply \
 	long_long_apply \
 	newobject3 \
-	smart_pointer_static \
 	smart_pointer_template_defaults_overload \
 	using_nested_member_typedef \
 

@@ -1508,7 +1508,7 @@ public:
     }
 
     String *dispose = Copy(typemapLookup(n, derived ? "dartdispose_derived" : "dartdispose", typemap_lookup_type, WARN_NONE));
-    Replaceall(dispose, "$directordispose", feature_director ? "\n    $imclassname.swigDirectors.remove(_swigCPtr_$dartclassname.address);" : "");
+    Replaceall(dispose, "$directordispose", feature_director ? "\n      $imclassname.swigDirectors.remove(_swigCPtr_$dartclassname.address);" : "");
     if (*Char(destructor_call))
       Replaceall(dispose, "$imcall", destructor_call);
     else
@@ -1962,6 +1962,8 @@ public:
       Setattr(n, "dart:implname", impl_name);
       Setattr(n, "dart:paramtypes", param_types);
       Setattr(n, "dart:returntype", return_type);
+      if (is_static)
+        SetFlag(n, "dart:static");
       Delete(impl_name);
       if (!Getattr(n, "sym:nextSibling"))
         emitOverloadDispatcher(n, code, function_name, is_static);
@@ -2005,8 +2007,12 @@ public:
   void emitOverloadDispatcher(Node *n, String *code, const String *function_name, bool is_static, String *params_out = NULL, String *args_out = NULL) {
     List *overloads = NewList();
     for (Node *o = Getattr(n, "sym:overloaded"); o; o = Getattr(o, "sym:nextSibling")) {
-      if (Getattr(o, "dart:implname"))
+      if (Getattr(o, "dart:implname")) {
         Append(overloads, o);
+        // A dispatcher for a mix of static and non-static member functions is non-static, it can call both
+        if (is_static && !GetFlag(o, "dart:static") && !Equal(Getattr(o, "dart:returntype"), "ffi.Pointer<ffi.Void>"))
+          is_static = false;
+      }
     }
 
     // Return type of the dispatcher, dynamic unless all the overloads return the same type
@@ -2056,6 +2062,15 @@ public:
         Printf(params, "%s%s%s%s arg%d", i > 0 ? ", " : "", i == min_params ? "[" : "", type, (i >= min_params && !isNullableType(type)) ? "?" : "", i);
       }
       Printf(params, "%s", min_params < max_params ? "]" : "");
+
+      // An argument cannot be omitted (null) when a following argument is passed
+      for (int i = min_params; i < max_params - 1; i++)
+        Printf(
+          body,
+          "    if (arg%d == null && arg%d != null) {\n      throw ArgumentError('Argument %d cannot be omitted when a following argument is passed');\n    }\n",
+          i,
+          i + 1,
+          i);
 
       // Call the overload with the most arguments which are all non-null
       for (int nargs = min_params; nargs <= max_params; nargs++) {
@@ -2541,6 +2556,9 @@ public:
       return true;
     }
     if (!*c)
+      return false;
+    // A C octal literal is not valid in Dart
+    if (c[0] == '0' && c[1])
       return false;
     for (; *c; c++) {
       if (!isdigit((unsigned char)*c))
@@ -3159,8 +3177,17 @@ public:
     Swig_typemap_attach_parms("directorargout", l, w);
 
     /* Preamble code, the C++ base method is called when the Dart method is not connected or when re-entered */
-    if (!ignored_method)
-      Printf(w->code, "if (!swig_callback%s || swig_reentry%s) {\n", overloaded_name, overloaded_name);
+    // The Dart proxy methods of a director class make a non-virtual call to the C++ method when called on a Dart object extending the
+    // class. This is not possible for virtual methods inherited from a non-director class, so to avoid infinite recursion when the Dart
+    // class does not override such a method, the C++ base class method is called when the director method is re-entered.
+    Node *method_class = parentNode(n);
+    bool reentry_guard = !ignored_method && !(method_class && Equal(nodeType(method_class), "class") && Swig_directorclass(method_class));
+    if (!ignored_method) {
+      if (reentry_guard)
+        Printf(w->code, "if (!swig_callback%s || swig_reentry%s) {\n", overloaded_name, overloaded_name);
+      else
+        Printf(w->code, "if (!swig_callback%s) {\n", overloaded_name);
+    }
 
     if (!pure_virtual) {
       String *super_call = Swig_method_call(super, l);
@@ -3182,7 +3209,8 @@ public:
 
     if (!ignored_method) {
       Printf(w->code, "} else {\n");
-      Printf(w->code, "Swig::DirectorReentryGuard swig_reentry_guard(swig_reentry%s);\n", overloaded_name);
+      if (reentry_guard)
+        Printf(w->code, "Swig::DirectorReentryGuard swig_reentry_guard(swig_reentry%s);\n", overloaded_name);
     }
 
     /* Go through argument list, convert from native to Dart */
@@ -3514,7 +3542,10 @@ public:
 
       Printf(director_callback_typedefs, "    typedef %s (SWIGSTDCALL* SWIG_Callback%s_t)(void *%s);\n", c_ret_type, methid, callback_typedef_parms);
       Printf(director_callbacks, "    SWIG_Callback%s_t swig_callback%s;\n", methid, overloaded_name);
-      Printf(director_callbacks, "    mutable bool swig_reentry%s;\n", overloaded_name);
+      if (reentry_guard) {
+        Printf(director_callbacks, "    mutable bool swig_reentry%s;\n", overloaded_name);
+        SetFlag(udata, "reentry");
+      }
       Printv(director_dart_callbacks, callback_code, NIL);
       Delete(methid);
       Delete(udata);
@@ -3745,7 +3776,8 @@ public:
       Hash *udata = Getitem(dmethods_seq, i);
       String *overname = Getattr(udata, "overname");
       Printf(w->code, "swig_callback%s = 0;\n", overname);
-      Printf(w->code, "swig_reentry%s = false;\n", overname);
+      if (GetFlag(udata, "reentry"))
+        Printf(w->code, "swig_reentry%s = false;\n", overname);
     }
     Printf(w->code, "}");
 

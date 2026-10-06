@@ -61,6 +61,13 @@ void main() {
   check(Statics.staticmethod(), 10 + 20 + 30);
   check(Statics.staticmethod(100), 100 + 20 + 30);
   check(Statics.staticmethod(100, 200, 300), 100 + 200 + 300);
+  // An argument cannot be omitted when a following argument is passed
+  try {
+    Statics.staticmethod(100, null, 300);
+    throw Exception('missed ArgumentError');
+  } on ArgumentError {
+    // expected
+  }
 
   final tricky = Tricky();
   check(tricky.privatedefault(), 200);
