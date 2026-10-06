@@ -34,6 +34,7 @@
 <li><a href="#Dart_strings">Strings</a>
 <li><a href="#Dart_exceptions">Exception handling</a>
 <li><a href="#Dart_stl">STL support</a>
+<li><a href="#Dart_directors">Directors</a>
 <li><a href="#Dart_typemaps">Typemaps</a>
 <li><a href="#Dart_limitations">Known limitations</a>
 </ul>
@@ -82,11 +83,8 @@ The main features are:
 <li><tt>std::vector</tt> is wrapped by a class implementing the Dart <tt>List</tt> interface.</li>
 <li>C++ exceptions and other errors reported by the C/C++ code can be converted into Dart exceptions.</li>
 <li>The C++ objects owned by Dart are deleted when the Dart proxy object is garbage collected, using a <tt>NativeFinalizer</tt>, or when <tt>dispose()</tt> is called.</li>
+<li>Directors, so that C++ virtual methods can be overridden in Dart.</li>
 </ul>
-
-<p>
-Directors (calling Dart methods from C++ virtual methods) are not supported yet.
-</p>
 
 <H2><a name="Dart_preliminaries">41.2 Preliminaries</a></H2>
 
@@ -735,7 +733,72 @@ print(example.average(v));                // 2.5
 </pre>
 </div>
 
-<H2><a name="Dart_typemaps">41.9 Typemaps</a></H2>
+<H2><a name="Dart_directors">41.9 Directors</a></H2>
+
+
+<p>
+Directors make it possible to extend a wrapped C++ class in Dart and override its virtual methods, so that calls made from C++
+to the virtual methods call the Dart methods.
+Directors are enabled using the <tt>directors</tt> module option and the <tt>director</tt> feature, as for the other target languages,
+see the <a href="Python.html#Python_directors">Python directors</a> section for an introduction:
+</p>
+
+<div class="code">
+<pre>
+%module(directors="1") example
+%feature("director") Callback;
+
+%inline %{
+class Callback {
+public:
+  virtual ~Callback() {}
+  virtual int compute(int x) { return x + 1; }
+};
+
+class Caller {
+  Callback *cb_;
+public:
+  Caller(Callback *cb) : cb_(cb) {}
+  int call(int x) { return cb_-&gt;compute(x); }
+};
+%}
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+class MyCallback extends Callback {
+  @override
+  int compute(int x) =&gt; super.compute(x) * 10;  // super calls Callback::compute in C++
+}
+
+final cb = MyCallback();
+final caller = Caller(cb);
+print(caller.call(4));  // 50
+cb.dispose();
+</pre>
+</div>
+
+<p>
+The C++ director class calls the Dart methods through C function pointers created with <tt>Pointer.fromFunction</tt> from <tt>dart:ffi</tt>.
+This has the following consequences:
+</p>
+
+<ul>
+<li>The C++ code must call the director methods from the thread running the Dart isolate which created the Dart object,
+and only while the Dart code is calling into the C/C++ code, for example, from a callback made during a call to a wrapped function.
+Calling a director method from another thread is not supported.</li>
+<li>The Dart objects extending a director class are kept alive in a registry so that the C++ code can call them.
+They are not garbage collected and the C++ object is not deleted until <tt>dispose()</tt> is called.</li>
+<li>A Dart exception thrown by a Dart method called from C++ cannot be propagated through the C++ code.
+Instead, the exception is reported as an uncaught error in the current zone and a default value, such as zero or null, is returned to the C++ code.</li>
+<li>As Dart has no reflection, all the director methods are connected to the Dart methods.
+When a director method is not overridden in Dart, the C++ base class method is called, which also happens when the
+Dart method calls the base class method with <tt>super</tt>.
+A pure virtual method which is not implemented in the Dart class throws an <tt>UnsupportedError</tt> when called.</li>
+</ul>
+
+<H2><a name="Dart_typemaps">41.10 Typemaps</a></H2>
 
 
 <p>
@@ -759,6 +822,7 @@ of the C# chapter, and to the Java typemaps documented in the <a href="Java.html
 <tr><td><tt>dartbody</tt>, <tt>dartbody_derived</tt></td><td>Main body of the proxy and type wrapper classes</td></tr>
 <tr><td><tt>dartdispose</tt>, <tt>dartdispose_derived</tt></td><td>The <tt>dispose</tt> method of the proxy classes</td></tr>
 <tr><td><tt>dartconstruct</tt></td><td>Initializer list of the proxy class constructors</td></tr>
+<tr><td><tt>dartdirectorin</tt>, <tt>dartdirectorout</tt></td><td>Conversion of the director method parameters from the <tt>imtype</tt> to the <tt>darttype</tt> and of the return value from the <tt>darttype</tt> to the <tt>imtype</tt>, used by the Dart callbacks of the directors</td></tr>
 </table>
 
 <p>
@@ -807,7 +871,7 @@ The following pragmas can be used to customize the generated classes:
 The <tt>%proxycode</tt> directive adds code to a proxy class, as for the other target languages.
 </p>
 
-<H2><a name="Dart_limitations">41.10 Known limitations</a></H2>
+<H2><a name="Dart_limitations">41.11 Known limitations</a></H2>
 
 
 <p>
@@ -815,7 +879,6 @@ The Dart module is experimental and the following are not supported yet:
 </p>
 
 <ul>
-<li>Directors.</li>
 <li>The <tt>nspace</tt> feature and the <tt>%interface</tt> family of directives for multiple inheritance.</li>
 <li>Doxygen comments translation.</li>
 <li>C++ operators other than <tt>operator()</tt>, unless renamed.</li>

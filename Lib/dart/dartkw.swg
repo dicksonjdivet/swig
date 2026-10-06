@@ -106,6 +106,7 @@ DARTCLASSKW(hashCode);
 DARTCLASSKW(noSuchMethod);
 DARTCLASSKW(runtimeType);
 DARTCLASSKW(swigCMemOwn);
+DARTCLASSKW(swigDirectorConnected);
 DARTCLASSKW(toString);
 
 #undef DARTKW

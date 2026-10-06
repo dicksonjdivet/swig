@@ -298,6 +298,7 @@
 #define WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF        789
 #define WARN_DART_EXCODE                             790
 #define WARN_DART_CANTHROW                           791
+#define WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF       792
 
 /* please leave 780-799 free for Dart */
 

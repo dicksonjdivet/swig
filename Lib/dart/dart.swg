@@ -462,7 +462,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* The dispose method deletes the C++ object if it is owned. $imcall is replaced by the C++ destructor call */
 %typemap(dartdispose) SWIGTYPE %{
-  void dispose() {
+  void dispose() {$directordispose
     if (swigCMemOwn) {
       swigCMemOwn = false;
       _swigFinalizer?.detach(this);
@@ -473,7 +473,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %}
 
 %typemap(dartdispose_derived) SWIGTYPE %{
-  void dispose() {
+  void dispose() {$directordispose
     if (swigCMemOwn) {
       swigCMemOwn = false;
       _swigFinalizer?.detach(this);

@@ -36,6 +36,18 @@ namespace Swig {
     }
   };
 
+  /* Sets a flag for the lifetime of the guard, used to detect re-entry into a director method */
+  class DirectorReentryGuard {
+    bool &flag_;
+  public:
+    DirectorReentryGuard(bool &flag) : flag_(flag) {
+      flag_ = true;
+    }
+    ~DirectorReentryGuard() {
+      flag_ = false;
+    }
+  };
+
   /* Pure virtual method exception */
   class DirectorPureVirtualException : public DirectorException {
   public:

@@ -20,6 +20,7 @@ top_builddir = ../@top_builddir@
 # Library files not yet available for Dart: argcargv.i, cdata.i, std_auto_ptr.i, std_map.i, std_unique_ptr.i, std_wstring.i, typemaps.i.
 # Nested classes are flattened, so nested classes with the same name in different classes clash.
 # Dart has no method overloading or hiding, so an overload dispatcher cannot be overridden by a method with a different signature.
+# The string and length typemaps do not support directors.
 FAILING_C_TESTS := \
 	c_delete \
 	li_cdata \
@@ -33,6 +34,8 @@ FAILING_CPP_TESTS := \
 	cpp11_strongly_typed_enumerations \
 	cpp11_template_parameters_decltype \
 	cpp17_map_no_default_ctor \
+	director_binary_string \
+	director_binary_string_rev_len \
 	director_classes \
 	director_overload2 \
 	exception_classname \

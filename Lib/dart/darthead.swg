@@ -98,6 +98,9 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
 
   final ffi.DynamicLibrary _library;
 
+  // The Dart objects extending a director class, keyed by the address of the C++ object, used by the director callbacks.
+  static final Map<int, Object> swigDirectors = <int, Object>{};
+
   $imclassname._() : _library = swigLibrary ??= _swigOpenLibrary('$dllimport');
 
   static ffi.DynamicLibrary _swigOpenLibrary(String name) {

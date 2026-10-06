@@ -76,6 +76,15 @@ class DART : public Language {
   String *destructor_call;              // Dart code calling the C++ destructor wrapper, if any
   String *destructor_wname;             // name of the exported C++ destructor wrapper, if any
 
+  // Director method stuff:
+  List *dmethods_seq;                  // all the director methods, as UpcallData hashes
+  int n_dmethods;                      // number of director methods
+  int first_class_dmethod;             // index of the first director method of the class being wrapped
+  int curr_class_dmethod;              // index after the last director method of the class being wrapped
+  String *director_callback_typedefs;  // C++ function pointer typedefs for the director callbacks
+  String *director_callbacks;          // C++ director callback function pointer member variables
+  String *director_dart_callbacks;     // Dart static functions called by the C++ director methods
+
   enum EnumFeature { SimpleEnum, ProperEnum };
 
 public:
@@ -128,7 +137,17 @@ public:
     module_class_modifiers(NULL),
     upcasts_code(NULL),
     destructor_call(NULL),
-    destructor_wname(NULL) {
+    destructor_wname(NULL),
+    dmethods_seq(NULL),
+    n_dmethods(0),
+    first_class_dmethod(0),
+    curr_class_dmethod(0),
+    director_callback_typedefs(NULL),
+    director_callbacks(NULL),
+    director_dart_callbacks(NULL) {
+    /* Multiple inheritance in directors is not supported */
+    director_multiple_inheritance = 0;
+    directorLanguage();
   }
 
   /* -----------------------------------------------------------------------------
@@ -190,6 +209,21 @@ public:
     if (optionsnode) {
       if (Getattr(optionsnode, "imclassname"))
         imclass_name = Copy(Getattr(optionsnode, "imclassname"));
+      /* check if directors are enabled for this module.  note: this
+       * is a "master" switch, without which no director code will be
+       * emitted.  %feature("director") statements are also required
+       * to enable directors for individual classes or methods.
+       *
+       * use %module(directors="1") modulename at the start of the
+       * interface file to enable director generation.
+       */
+      if (Getattr(optionsnode, "directors")) {
+        allow_directors();
+      }
+      if (Getattr(optionsnode, "dirprot")) {
+        allow_dirprot();
+      }
+      allow_allprotected(GetFlag(optionsnode, "allprotected"));
       common_begin_code = Getattr(optionsnode, "dartbegin");
       if (common_begin_code)
         Printf(common_begin_code, "\n");
@@ -207,6 +241,19 @@ public:
     if (!f_begin) {
       FileErrorDisplay(outfile);
       Exit(EXIT_FAILURE);
+    }
+
+    String *outfile_h = Getattr(n, "outfile_h");
+    if (Swig_directors_enabled()) {
+      if (!outfile_h) {
+        Printf(stderr, "Unable to determine outfile_h\n");
+        Exit(EXIT_FAILURE);
+      }
+      f_runtime_h = NewFile(outfile_h, "w", SWIG_output_files());
+      if (!f_runtime_h) {
+        FileErrorDisplay(outfile_h);
+        Exit(EXIT_FAILURE);
+      }
     }
 
     f_runtime = NewString("");
@@ -258,12 +305,34 @@ public:
     library_pragma_code = NewString("");
     imported_modules = NewString("");
     upcasts_code = NewString("");
+    dmethods_seq = NewList();
+    n_dmethods = 0;
     if (!libname)
       libname = Copy(module_class_name);
 
     Swig_banner(f_begin);
 
     Swig_obligatory_macros(f_runtime, "DART");
+
+    if (Swig_directors_enabled()) {
+      Printf(f_runtime, "#define SWIG_DIRECTORS\n");
+
+      /* Emit initial director header and director code: */
+      Swig_banner(f_directors_h);
+      Printf(f_directors_h, "\n");
+      Printf(f_directors_h, "#ifndef SWIG_%s_WRAP_H_\n", module_class_name);
+      Printf(f_directors_h, "#define SWIG_%s_WRAP_H_\n\n", module_class_name);
+
+      Printf(f_directors, "\n\n");
+      Printf(f_directors, "/* ---------------------------------------------------\n");
+      Printf(f_directors, " * C++ director class methods\n");
+      Printf(f_directors, " * --------------------------------------------------- */\n\n");
+      if (outfile_h) {
+        String *filename = Swig_file_filename(outfile_h);
+        Printf(f_directors, "#include \"%s\"\n\n", filename);
+        Delete(filename);
+      }
+    }
 
     Printf(f_runtime, "\n");
 
@@ -278,6 +347,12 @@ public:
 
     /* Emit code */
     Language::top(n);
+
+    if (Swig_directors_enabled()) {
+      // Insert director runtime into the f_runtime file (make it occur before %header section)
+      Swig_insert_file("director_common.swg", f_runtime);
+      Swig_insert_file("director.swg", f_runtime);
+    }
 
     Printv(f_wrappers, upcasts_code, NIL);
 
@@ -332,10 +407,25 @@ public:
     upcasts_code = NULL;
     Delete(libname);
     libname = NULL;
+    Delete(dmethods_seq);
+    dmethods_seq = NULL;
+    n_dmethods = 0;
 
     /* Close all of the files */
     Dump(f_runtime, f_begin);
     Dump(f_header, f_begin);
+
+    if (Swig_directors_enabled()) {
+      Dump(f_directors, f_begin);
+      Dump(f_directors_h, f_runtime_h);
+
+      Printf(f_runtime_h, "\n");
+      Printf(f_runtime_h, "#endif\n");
+
+      Delete(f_runtime_h);
+      f_runtime_h = NULL;
+    }
+
     Dump(f_wrappers, f_begin);
     Wrapper_pretty_print(f_init, f_begin);
     Delete(f_header);
@@ -374,6 +464,7 @@ public:
     Printf(f_dart, "// ignore_for_file: camel_case_types, constant_identifier_names, non_constant_identifier_names\n");
     Printf(f_dart, "// ignore_for_file: unused_element, unused_field, unused_import, unnecessary_this\n\n");
 
+    Printf(f_dart, "import 'dart:async' as swig_async;\n");
     Printf(f_dart, "import 'dart:collection' as swig_collection;\n");
     Printf(f_dart, "import 'dart:convert' as swig_convert;\n");
     Printf(f_dart, "import 'dart:ffi' as ffi;\n");
@@ -673,6 +764,17 @@ public:
     // Now write code to make the function call
     if (!native_function_flag) {
 
+      if (Swig_director_emit_dynamic_cast(n, f)) {
+        /* Add protection */
+        Setattr(n, "dart:canthrow", "1");
+        Append(f->code, "if (!darg) {\n");
+        Append(f->code, "  SWIG_DartSetPendingException(SWIG_DartArgumentNullError, \"'self' is not a director\");\n");
+        if (is_void_return)
+          Append(f->code, "  return;\n");
+        else
+          Append(f->code, "  return jresult;\n");
+        Append(f->code, "}\n");
+      }
       String *actioncode = emit_action(n);
 
       /* Return value if necessary  */
@@ -1397,15 +1499,25 @@ public:
     String *finalizer = destructor_wname ? NewStringf("ffi.NativeFinalizer(%s().swigLookupDeleter('%s'))", imclass_name, destructor_wname) : NewString("null");
     Replaceall(proxy_class_def, "$finalizer", finalizer);
     Delete(finalizer);
-    Replaceall(proxy_class_def, "$directorconnect", "");
+    bool feature_director = Swig_directorclass(n) ? true : false;
+    if (feature_director) {
+      // Connect the director callbacks when the proxy class is extended in Dart
+      Replaceall(proxy_class_def, "$directorconnect", "\n    if (runtimeType != $dartclassname) {\n      _swigDirectorConnect_$dartclassname();\n    }");
+    } else {
+      Replaceall(proxy_class_def, "$directorconnect", "");
+    }
 
     String *dispose = Copy(typemapLookup(n, derived ? "dartdispose_derived" : "dartdispose", typemap_lookup_type, WARN_NONE));
+    Replaceall(dispose, "$directordispose", feature_director ? "\n    $imclassname.swigDirectors.remove(_swigCPtr_$dartclassname.address);" : "");
     if (*Char(destructor_call))
       Replaceall(dispose, "$imcall", destructor_call);
     else
       Replaceall(dispose, "$imcall", "throw UnsupportedError('C++ destructor does not have public access')");
     Printv(proxy_class_def, dispose, NIL);
     Delete(dispose);
+
+    if (feature_director)
+      emitDirectorConnect(n);
 
     // Emit extra user code
     Printv(proxy_class_def,
@@ -1486,6 +1598,8 @@ public:
       Printv(library_code, proxy_class_constants_code, NIL);
 
     Printf(library_code, "}\n\n");
+
+    emitDirectorExtraMethods(n);
 
     Delete(dartclazzname);
     Delete(proxy_class_name);
@@ -1667,6 +1781,38 @@ public:
     }
 
     Printf(imcall, ")");
+
+    if (member_function && !static_flag && proxy_class_name && Swig_directorclass(getCurrentClass())) {
+      // For director methods called on a Dart object extending the proxy class, make an explicit (non-virtual) call to the C++
+      // method, as the polymorphic call would call the Dart method again, for example when calling the base class method in Dart.
+      String *alternative = NULL;
+      Node *explicit_n = Getattr(n, "explicitcallnode");
+      if (explicit_n) {
+        String *ex_overloaded_name = getOverloadedName(explicit_n);
+        String *ex_name = Swig_name_member(getNSpace(), getClassPrefix(), ex_overloaded_name);
+        String *from = NewStringf("().%s(", imfuncname);
+        String *to = NewStringf("().%s(", ex_name);
+        alternative = Copy(imcall);
+        Replace(alternative, from, to, DOH_REPLACE_FIRST);
+        Delete(to);
+        Delete(from);
+        Delete(ex_name);
+        Delete(ex_overloaded_name);
+      } else if (Cmp(Getattr(n, "storage"), "virtual") == 0 && Cmp(Getattr(n, "value"), "0") == 0) {
+        alternative = NewStringf("throw UnsupportedError('Pure virtual method %s::%s() is not implemented in Dart')", proxy_class_name, Getattr(n, "sym:name"));
+      }
+      if (alternative) {
+        String *combined;
+        if (Cmp(t, "void") == 0)
+          combined = NewStringf("if (swigDirectorConnected) %s; else %s", alternative, imcall);
+        else
+          combined = NewStringf("(swigDirectorConnected ? %s : %s)", alternative, imcall);
+        Clear(imcall);
+        Append(imcall, combined);
+        Delete(combined);
+        Delete(alternative);
+      }
+    }
 
     // Transform return type used in the intermediary class function to type used in the Dart proxy function
     String *body = NULL;
@@ -1856,7 +2002,7 @@ public:
    * a function with optional nullable parameters is generated instead.
    * ----------------------------------------------------------------------------- */
 
-  void emitOverloadDispatcher(Node *n, String *code, const String *function_name, bool is_static) {
+  void emitOverloadDispatcher(Node *n, String *code, const String *function_name, bool is_static, String *params_out = NULL, String *args_out = NULL) {
     List *overloads = NewList();
     for (Node *o = Getattr(n, "sym:overloaded"); o; o = Getattr(o, "sym:nextSibling")) {
       if (Getattr(o, "dart:implname"))
@@ -1894,7 +2040,8 @@ public:
         min_params = nparams;
     }
 
-    Printf(code, "  %s%s %s(", is_static ? "static " : "", dispatcher_return_type, function_name);
+    String *params = NewString("");
+    String *body = NewString("");
 
     if (default_args_only) {
       // Optional nullable parameters, using the types of the overload with all the parameters
@@ -1906,9 +2053,9 @@ public:
       List *types = Getattr(longest, "dart:paramtypes");
       for (int i = 0; i < max_params; i++) {
         String *type = Getitem(types, i);
-        Printf(code, "%s%s%s%s arg%d", i > 0 ? ", " : "", i == min_params ? "[" : "", type, (i >= min_params && !isNullableType(type)) ? "?" : "", i);
+        Printf(params, "%s%s%s%s arg%d", i > 0 ? ", " : "", i == min_params ? "[" : "", type, (i >= min_params && !isNullableType(type)) ? "?" : "", i);
       }
-      Printf(code, "%s) {\n", min_params < max_params ? "]" : "");
+      Printf(params, "%s", min_params < max_params ? "]" : "");
 
       // Call the overload with the most arguments which are all non-null
       for (int nargs = min_params; nargs <= max_params; nargs++) {
@@ -1926,26 +2073,25 @@ public:
         }
         Printf(call, ")");
         if (nargs < max_params)
-          Printf(code, "    if (arg%d == null) {\n  ", nargs);
+          Printf(body, "    if (arg%d == null) {\n  ", nargs);
         if (is_void)
-          Printf(code, "    %s;\n    %sreturn;\n", call, nargs < max_params ? "  " : "");
+          Printf(body, "    %s;\n    %sreturn;\n", call, nargs < max_params ? "  " : "");
         else
-          Printf(code, "    return %s;\n", call);
+          Printf(body, "    return %s;\n", call);
         if (nargs < max_params)
-          Printf(code, "    }\n");
+          Printf(body, "    }\n");
         Delete(call);
       }
-      Printf(code, "  }\n\n");
     } else {
       // Dispatch based on the runtime types of the arguments, the parameters not used by all the overloads are optional
       for (int i = 0; i < max_params; i++) {
         if (i == min_params)
-          Printf(code, "%s[", i > 0 ? ", " : "");
+          Printf(params, "%s[", i > 0 ? ", " : "");
         else if (i > 0)
-          Printf(code, ", ");
-        Printf(code, "Object? arg%d%s", i, i >= min_params ? " = _swigNoArg" : "");
+          Printf(params, ", ");
+        Printf(params, "Object? arg%d%s", i, i >= min_params ? " = _swigNoArg" : "");
       }
-      Printf(code, "%s) {\n", min_params < max_params ? "]" : "");
+      Printf(params, "%s", min_params < max_params ? "]" : "");
 
       List *ranked = Swig_overload_rank(n, false);
       for (Iterator it = First(ranked ? ranked : overloads); it.item; it = Next(it)) {
@@ -1977,20 +2123,29 @@ public:
         Printf(call, ")");
         if (Len(condition) == 0)
           Printf(condition, "true");
-        Printf(code, "    if (%s) {\n", condition);
+        Printf(body, "    if (%s) {\n", condition);
         if (is_void)
-          Printf(code, "      %s;\n      return;\n", call);
+          Printf(body, "      %s;\n      return;\n", call);
         else
-          Printf(code, "      return %s;\n", call);
-        Printf(code, "    }\n");
+          Printf(body, "      return %s;\n", call);
+        Printf(body, "    }\n");
         Delete(call);
         Delete(condition);
       }
       Delete(ranked);
-      Printf(code, "    throw ArgumentError('No matching function for overloaded \\'%s\\'');\n", function_name);
-      Printf(code, "  }\n\n");
+      Printf(body, "    throw ArgumentError('No matching function for overloaded \\'%s\\'');\n", Getattr(n, "sym:name"));
     }
 
+    Printf(code, "  %s%s %s(%s) {\n%s  }\n\n", is_static ? "static " : "", dispatcher_return_type, function_name, params, body);
+    if (params_out)
+      Append(params_out, params);
+    if (args_out) {
+      for (int i = 0; i < max_params; i++)
+        Printf(args_out, "%sarg%d", i > 0 ? ", " : "", i);
+    }
+
+    Delete(body);
+    Delete(params);
     Delete(dispatcher_return_type);
     Delete(overloads);
   }
@@ -2068,25 +2223,23 @@ public:
 
     const String *methodmods = Getattr(n, "feature:dart:methodmodifiers");
     if (Getattr(n, "sym:overloaded")) {
-      // Dart does not support overloaded constructors, each overload is a named constructor and a factory constructor dispatches to them
-      String *impl_name = NewStringf("%s._swigCreate%s%s", proxy_class_name, named_constructor ? symname : "", Getattr(n, "sym:overname"));
-      Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", impl_name, ctor_params, construct_tm);
-      Setattr(n, "dart:implname", impl_name);
+      // Dart does not support overloaded constructors, a static function dispatches to the constructor helper functions. The constructor is a
+      // generative constructor so that it can be called from a derived class.
+      Setattr(n, "dart:implname", helper_name);
       Setattr(n, "dart:paramtypes", param_types);
-      Setattr(n, "dart:returntype", proxy_class_name);
-      Delete(impl_name);
-      Printv(proxy_class_code, function_code, NIL);
+      Setattr(n, "dart:returntype", "ffi.Pointer<ffi.Void>");
       if (!Getattr(n, "sym:nextSibling")) {
-        String *dispatcher = NewString("");
-        emitOverloadDispatcher(n, dispatcher, constructor_name, false);
-        // The dispatcher is a factory constructor
-        String *dispatcher_start = NewStringf("  %s %s(", proxy_class_name, constructor_name);
-        String *factory_start = NewStringf("  factory %s(", constructor_name);
-        Replace(dispatcher, dispatcher_start, factory_start, DOH_REPLACE_FIRST);
-        Printv(proxy_class_code, dispatcher, NIL);
-        Delete(factory_start);
-        Delete(dispatcher_start);
-        Delete(dispatcher);
+        String *dispatch_name = NewStringf("_swigConstructDispatch%s", named_constructor ? symname : "");
+        String *dispatch_params = NewString("");
+        String *dispatch_args = NewString("");
+        emitOverloadDispatcher(n, proxy_class_code, dispatch_name, true, dispatch_params, dispatch_args);
+        String *dispatch_call = NewStringf("%s(%s)", dispatch_name, dispatch_args);
+        Replaceall(construct_tm, helper_call, dispatch_call);
+        Printf(proxy_class_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, dispatch_params, construct_tm);
+        Delete(dispatch_call);
+        Delete(dispatch_args);
+        Delete(dispatch_params);
+        Delete(dispatch_name);
       }
     } else {
       Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, ctor_params, construct_tm);
@@ -2714,6 +2867,934 @@ public:
         Putc(*c, escaped);
     }
     return escaped;
+  }
+
+  /*----------------------------------------------------------------------
+   * Start of director methods
+   *
+   * The C++ director class calls the Dart methods through C function pointers to static
+   * Dart functions created with Pointer.fromFunction. The static Dart functions look up
+   * the Dart object from the C++ object pointer in a registry of the Dart objects
+   * extending a director class. As Dart has no reflection to find out which methods are
+   * overridden in Dart, all the director methods are connected. A C++ director method
+   * calls the C++ base class method instead of the Dart method when it is re-entered,
+   * which happens when the Dart method is not overridden or when it calls the base
+   * class method, and so avoids infinite recursion.
+   *--------------------------------------------------------------------*/
+
+  /* -----------------------------------------------------------------------------
+   * exceptionalReturn()
+   *
+   * The value returned by a Dart callback when the Dart code throws an exception,
+   * NULL when not needed (void and pointer return types).
+   * ----------------------------------------------------------------------------- */
+
+  static const char *exceptionalReturn(const String *imtype) {
+    if (Equal(imtype, "void") || Strncmp(imtype, "ffi.Pointer", 11) == 0)
+      return NULL;
+    if (Equal(imtype, "double"))
+      return "0.0";
+    if (Equal(imtype, "bool"))
+      return "false";
+    return "0";
+  }
+
+  /* -----------------------------------------------------------------------------
+   * emitDirectorConnect()
+   *
+   * Emit the Dart method connecting the director callbacks for the proxy class
+   * and the Dart callbacks called by the C++ director methods.
+   * ----------------------------------------------------------------------------- */
+
+  void emitDirectorConnect(Node *n) {
+    String *director_connect_method_name = Swig_name_member(getNSpace(), getClassPrefix(), "director_connect");
+    if (!hasDirectorBase(n)) {
+      Printf(proxy_class_code, "  // True if the director methods call the methods of a Dart class extending this class\n");
+      Printf(proxy_class_code, "  bool swigDirectorConnected = false;\n\n");
+    }
+    Printf(proxy_class_code, "  void _swigDirectorConnect_$dartclassname() {\n");
+    Printf(proxy_class_code, "    swigDirectorConnected = true;\n");
+    Printf(proxy_class_code, "    $imclassname.swigDirectors[_swigCPtr_$dartclassname.address] = this;\n");
+    Printf(proxy_class_code, "    $imclassname().%s(_swigCPtr_$dartclassname", director_connect_method_name);
+    for (int i = first_class_dmethod; i < curr_class_dmethod; ++i) {
+      Hash *udata = Getitem(dmethods_seq, i);
+      const char *exceptional = exceptionalReturn(Getattr(udata, "imreturn"));
+      Printf(proxy_class_code,
+             ",\n        ffi.Pointer.fromFunction<%s>(%s%s%s)",
+             Getattr(udata, "native"),
+             Getattr(udata, "callback"),
+             exceptional ? ", " : "",
+             exceptional ? exceptional : "");
+    }
+    Printf(proxy_class_code, ");\n");
+    Printf(proxy_class_code, "  }\n\n");
+    Printv(proxy_class_code, director_dart_callbacks, NIL);
+    Delete(director_connect_method_name);
+  }
+
+  /* -----------------------------------------------------------------------------
+   * hasDirectorBase()
+   *
+   * Returns true if a base class of the proxy class is a director class.
+   * ----------------------------------------------------------------------------- */
+
+  bool hasDirectorBase(Node *n) {
+    List *baselist = Getattr(n, "bases");
+    for (Iterator base = First(baselist); base.item; base = Next(base)) {
+      if (GetFlag(base.item, "feature:ignore") || !getProxyName(Getattr(base.item, "name")))
+        continue;
+      // Only the first base class is used in Dart
+      return Swig_directorclass(base.item) || hasDirectorBase(base.item);
+    }
+    return false;
+  }
+
+  /*----------------------------------------------------------------------
+   * emitDirectorExtraMethods()
+   *
+   * This is where the C director connect function and its dart:ffi binding are generated.
+   *--------------------------------------------------------------------*/
+
+  void emitDirectorExtraMethods(Node *n) {
+    if (!Swig_directorclass(n))
+      return;
+
+    String *norm_name = SwigType_namestr(Getattr(n, "name"));
+    String *dirclassname = directorClassName(n);
+    String *swig_director_connect = Swig_name_member(getNSpace(), getClassPrefix(), "director_connect");
+    String *wname = Swig_name_wrapper(swig_director_connect);
+    SwigType *smart = Getattr(n, "smart");
+    String *smartptr = smart ? SwigType_namestr(smart) : 0;
+    String *callback_types = NewString("");
+
+    Wrapper *code_wrap = NewWrapper();
+    Printf(code_wrap->def, "SWIGEXPORT void SWIGSTDCALL %s(void *objarg", wname);
+
+    if (smartptr) {
+      Printf(code_wrap->code, "  %s *obj = (%s *)objarg;\n", smartptr, smartptr);
+      Printf(code_wrap->code, "  // Keep a local instance of the smart pointer around while we are using the raw pointer\n");
+      Printf(code_wrap->code, "  // Avoids using smart pointer specific API.\n");
+      Printf(code_wrap->code, "  %s *director = static_cast<%s *>(obj->operator->());\n", dirclassname, dirclassname);
+    } else {
+      Printf(code_wrap->code, "  %s *obj = (%s *)objarg;\n", norm_name, norm_name);
+      Printf(code_wrap->code, "  %s *director = static_cast<%s *>(obj);\n", dirclassname, dirclassname);
+    }
+
+    Printf(code_wrap->code, "  director->swig_connect_director(");
+
+    for (int i = first_class_dmethod; i < curr_class_dmethod; ++i) {
+      Hash *udata = Getitem(dmethods_seq, i);
+      String *methid = Getattr(udata, "class_methodidx");
+
+      Printf(code_wrap->def, ", ");
+      if (i != first_class_dmethod)
+        Printf(code_wrap->code, ", ");
+      Printf(code_wrap->def, "%s::SWIG_Callback%s_t callback%s", dirclassname, methid, methid);
+      Printf(code_wrap->code, "callback%s", methid);
+      Printf(callback_types, ", ffi.Pointer<ffi.NativeFunction<%s>>", Getattr(udata, "native"));
+    }
+
+    Printf(code_wrap->def, ") {\n");
+    Printf(code_wrap->code, ");\n");
+    Printf(code_wrap->code, "}\n");
+
+    Wrapper_print(code_wrap, f_wrappers);
+    DelWrapper(code_wrap);
+
+    Printf(imclass_class_code,
+           "  late final %s = _library.lookupFunction<ffi.Void Function(ffi.Pointer<ffi.Void>%s), void Function(ffi.Pointer<ffi.Void>%s)>('%s');\n",
+           swig_director_connect,
+           callback_types,
+           callback_types,
+           wname);
+
+    Delete(callback_types);
+    Delete(smartptr);
+    Delete(wname);
+    Delete(swig_director_connect);
+    Delete(dirclassname);
+    Delete(norm_name);
+  }
+
+  /* ---------------------------------------------------------------
+   * classDirectorMethod()
+   *
+   * Emit a virtual director method to pass a method call on to the
+   * underlying Dart object.
+   * --------------------------------------------------------------- */
+
+  int classDirectorMethod(Node *n, Node *parent, String *super) {
+    String *c_classname = Getattr(parent, "name");
+    String *name = Getattr(n, "name");
+    String *symname = Getattr(n, "sym:name");
+    SwigType *returntype = Getattr(n, "type");
+    String *overloaded_name = 0;
+    String *storage = Getattr(n, "storage");
+    String *value = Getattr(n, "value");
+    String *decl = Getattr(n, "decl");
+    String *declaration = NewString("");
+    String *pre_code = NewString("");
+    String *post_code = NewString("");
+    String *terminator_code = NewString("");
+    String *tm;
+    Parm *p;
+    int i;
+    Wrapper *w = NewWrapper();
+    ParmList *l = Getattr(n, "parms");
+    bool is_void = !(Cmp(returntype, "void"));
+    String *qualified_return = 0;
+    bool pure_virtual = (!(Cmp(storage, "virtual")) && !(Cmp(value, "0")));
+    int status = SWIG_OK;
+    bool output_director = true;
+    String *dirclassname = directorClassName(parent);
+    String *qualified_name = NewStringf("%s::%s", dirclassname, name);
+    SwigType *c_ret_type = NULL;
+    String *jupcall_args = NewString("");
+    String *callback_typedef_parms = NewString("");
+    String *dart_params = NewString("");
+    String *native_params = NewString("");
+    String *upcall_args = NewString("");
+    String *im_return = NewString("");
+    String *ffi_return = NewString("");
+    bool ignored_method = GetFlag(n, "feature:ignore") ? true : false;
+
+    if (!ignored_method)
+      overloaded_name = getOverloadedName(n);
+
+    qualified_return = SwigType_rcaststr(returntype, "c_result");
+
+    if (!is_void && (!ignored_method || pure_virtual)) {
+      if (!SwigType_isclass(returntype)) {
+        if (!(SwigType_ispointer(returntype) || SwigType_isreference(returntype))) {
+          String *construct_result = NewStringf("= SwigValueInit< %s >()", SwigType_lstr(returntype, 0));
+          Wrapper_add_localv(w, "c_result", SwigType_lstr(returntype, "c_result"), construct_result, NIL);
+          Delete(construct_result);
+        } else {
+          String *base_typename = SwigType_base(returntype);
+          String *resolved_typename = SwigType_typedef_resolve_all(base_typename);
+          Symtab *symtab = Getattr(n, "sym:symtab");
+          Node *typenode = Swig_symbol_clookup(resolved_typename, symtab);
+
+          if (SwigType_ispointer(returntype) || (typenode && Getattr(typenode, "abstracts"))) {
+            /* initialize pointers to something sane. Same for abstract
+               classes when a reference is returned. */
+            Wrapper_add_localv(w, "c_result", SwigType_lstr(returntype, "c_result"), "= 0", NIL);
+          } else {
+            /* If returning a reference, initialize the pointer to a sane
+               default - if a Dart exception occurs, then the pointer returns
+               something other than a NULL-initialized reference. */
+            SwigType *noref_type = SwigType_del_reference(Copy(returntype));
+            String *noref_ltype = SwigType_lstr(noref_type, 0);
+            String *return_ltype = SwigType_lstr(returntype, 0);
+
+            Wrapper_add_localv(w, "result_default", "static", noref_ltype, "result_default", NIL);
+            Wrapper_add_localv(w, "c_result", return_ltype, "c_result", NIL);
+            Printf(w->code, "result_default = SwigValueInit< %s >();\n", noref_ltype);
+            Printf(w->code, "c_result = &result_default;\n");
+            Delete(return_ltype);
+            Delete(noref_ltype);
+            Delete(noref_type);
+          }
+
+          Delete(base_typename);
+          Delete(resolved_typename);
+        }
+      } else {
+        SwigType *vt;
+
+        vt = cplus_value_type(returntype);
+        if (!vt) {
+          Wrapper_add_localv(w, "c_result", SwigType_lstr(returntype, "c_result"), NIL);
+        } else {
+          Wrapper_add_localv(w, "c_result", SwigType_lstr(vt, "c_result"), NIL);
+          Delete(vt);
+        }
+      }
+    }
+
+    if (!ignored_method) {
+      /* The return types used in the Dart callback */
+      if ((tm = Swig_typemap_lookup("imtype", n, "", 0))) {
+        String *imtypeout = Getattr(n, "tmap:imtype:out");  // the type in the imtype typemap's out attribute overrides the type in the typemap
+        Printv(im_return, imtypeout ? imtypeout : tm, NIL);
+      } else {
+        Swig_warning(WARN_DART_TYPEMAP_IMTYPE_UNDEF, input_file, line_number, "No imtype typemap defined for %s\n", SwigType_str(returntype, 0));
+        output_director = false;
+      }
+      if ((tm = Swig_typemap_lookup("ffitype", n, "", 0))) {
+        String *ffitypeout = Getattr(n, "tmap:ffitype:out");  // the type in the ffitype typemap's out attribute overrides the type in the typemap
+        Printv(ffi_return, ffitypeout ? ffitypeout : tm, NIL);
+      } else {
+        Swig_warning(WARN_DART_TYPEMAP_FFITYPE_UNDEF, input_file, line_number, "No ffitype typemap defined for %s\n", SwigType_str(returntype, 0));
+        output_director = false;
+      }
+    }
+
+    if ((c_ret_type = Swig_typemap_lookup("ctype", n, "", 0))) {
+      if (!is_void && !ignored_method) {
+        String *jretval_decl = NewStringf("%s jresult", c_ret_type);
+        Wrapper_add_localv(w, "jresult", jretval_decl, "= 0", NIL);
+        Delete(jretval_decl);
+      }
+    } else {
+      Swig_warning(WARN_DART_TYPEMAP_CTYPE_UNDEF,
+                   input_file,
+                   line_number,
+                   "No ctype typemap defined for %s for use in %s::%s (skipping director method)\n",
+                   SwigType_str(returntype, 0),
+                   SwigType_namestr(c_classname),
+                   SwigType_namestr(name));
+      output_director = false;
+    }
+
+    Swig_director_parms_fixup(l);
+
+    /* Attach the standard typemaps */
+    Swig_typemap_attach_parms("out", l, 0);
+    Swig_typemap_attach_parms("ctype", l, 0);
+    Swig_typemap_attach_parms("ffitype", l, 0);
+    Swig_typemap_attach_parms("imtype", l, 0);
+    Swig_typemap_attach_parms("directorin", l, w);
+    Swig_typemap_attach_parms("dartdirectorin", l, 0);
+    Swig_typemap_attach_parms("directorargout", l, w);
+
+    /* Preamble code, the C++ base method is called when the Dart method is not connected or when re-entered */
+    if (!ignored_method)
+      Printf(w->code, "if (!swig_callback%s || swig_reentry%s) {\n", overloaded_name, overloaded_name);
+
+    if (!pure_virtual) {
+      String *super_call = Swig_method_call(super, l);
+      if (is_void) {
+        Printf(w->code, "%s;\n", super_call);
+        if (!ignored_method)
+          Printf(w->code, "return;\n");
+      } else {
+        Printf(w->code, "return %s;\n", super_call);
+      }
+      Delete(super_call);
+    } else {
+      Printf(w->code, "Swig::DirectorPureVirtualException::raise(\"%s::%s\");\n", SwigType_namestr(c_classname), SwigType_namestr(name));
+      if (!is_void)
+        Printf(w->code, "return %s;", qualified_return);
+      else if (!ignored_method)
+        Printf(w->code, "return;\n");
+    }
+
+    if (!ignored_method) {
+      Printf(w->code, "} else {\n");
+      Printf(w->code, "Swig::DirectorReentryGuard swig_reentry_guard(swig_reentry%s);\n", overloaded_name);
+    }
+
+    /* Go through argument list, convert from native to Dart */
+    for (i = 0, p = l; p; ++i) {
+      /* Is this superfluous? */
+      while (checkAttribute(p, "tmap:directorin:numinputs", "0")) {
+        p = Getattr(p, "tmap:directorin:next");
+      }
+
+      SwigType *pt = Getattr(p, "type");
+      String *ln = makeParameterName(n, p, i, false);
+      String *c_param_type = NULL;
+      String *c_decl = NewString("");
+      String *arg = NewStringf("j%s", ln);
+
+      /* And add to the upcall args */
+      Printf(jupcall_args, ", %s", arg);
+
+      /* Get parameter's intermediary C type */
+      if ((c_param_type = Getattr(p, "tmap:ctype"))) {
+        String *ctypeout = Getattr(p, "tmap:ctype:out");  // the type in the ctype typemap's out attribute overrides the type in the typemap
+        if (ctypeout)
+          c_param_type = ctypeout;
+
+        /* Add to local variables */
+        Printf(c_decl, "%s %s", c_param_type, arg);
+        if (!ignored_method)
+          Wrapper_add_localv(w, arg, c_decl, (!(SwigType_ispointer(pt) || SwigType_isreference(pt)) ? "" : "= 0"), NIL);
+
+        /* Add input marshalling code */
+        if ((tm = Getattr(p, "tmap:directorin"))) {
+
+          Setattr(p, "emit:directorinput", arg);
+          Replaceall(tm, "$input", arg);
+          Replaceall(tm, "$owner", "0");
+
+          if (Len(tm))
+            if (!ignored_method)
+              Printf(w->code, "%s\n", tm);
+
+          /* Add C type to callback typedef */
+          Printf(callback_typedef_parms, ", %s", c_param_type);
+
+          /* Add parameter to the Dart callback */
+          String *imtype = Getattr(p, "tmap:imtype");
+          String *ffitype = Getattr(p, "tmap:ffitype");
+          if (imtype && ffitype) {
+            String *imtypeout = Getattr(p, "tmap:imtype:out");  // the type in the imtype typemap's out attribute overrides the type in the typemap
+            if (imtypeout)
+              imtype = imtypeout;
+
+            String *din = Copy(Getattr(p, "tmap:dartdirectorin"));
+
+            if (din) {
+              Replaceall(din, "$module", module_class_name);
+              Replaceall(din, "$imclassname", imclass_name);
+              substituteClassname(pt, din);
+              Replaceall(din, "$iminput", ln);
+
+              // pre and post attribute support
+              String *pre = Getattr(p, "tmap:dartdirectorin:pre");
+              if (pre) {
+                substituteClassname(pt, pre);
+                Replaceall(pre, "$iminput", ln);
+                if (Len(pre_code) > 0)
+                  Printf(pre_code, "\n");
+                Printv(pre_code, pre, NIL);
+              }
+              String *post = Getattr(p, "tmap:dartdirectorin:post");
+              if (post) {
+                substituteClassname(pt, post);
+                Replaceall(post, "$iminput", ln);
+                if (Len(post_code) > 0)
+                  Printf(post_code, "\n");
+                Printv(post_code, post, NIL);
+              }
+              String *terminator = Getattr(p, "tmap:dartdirectorin:terminator");
+              if (terminator) {
+                substituteClassname(pt, terminator);
+                Replaceall(terminator, "$iminput", ln);
+                if (Len(terminator_code) > 0)
+                  Insert(terminator_code, 0, "\n");
+                Insert(terminator_code, 0, terminator);
+              }
+
+              Printf(dart_params, ", %s %s", imtype, ln);
+              Printf(native_params, ", %s", ffitype);
+              Printf(upcall_args, "%s%s", Len(upcall_args) > 0 ? ", " : "", din);
+              Delete(din);
+            } else {
+              Swig_warning(WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF,
+                           input_file,
+                           line_number,
+                           "No dartdirectorin typemap defined for %s for use in %s::%s (skipping director method)\n",
+                           SwigType_str(pt, 0),
+                           SwigType_namestr(c_classname),
+                           SwigType_namestr(name));
+              output_director = false;
+            }
+          } else {
+            Swig_warning(imtype ? WARN_DART_TYPEMAP_FFITYPE_UNDEF : WARN_DART_TYPEMAP_IMTYPE_UNDEF,
+                         input_file,
+                         line_number,
+                         "No %s typemap defined for %s for use in %s::%s (skipping director method)\n",
+                         imtype ? "ffitype" : "imtype",
+                         SwigType_str(pt, 0),
+                         SwigType_namestr(c_classname),
+                         SwigType_namestr(name));
+            output_director = false;
+          }
+
+          p = Getattr(p, "tmap:directorin:next");
+
+        } else {
+          Swig_warning(WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF,
+                       input_file,
+                       line_number,
+                       "No or improper directorin typemap defined for argument %s for use in %s::%s (skipping director method)\n",
+                       SwigType_str(pt, 0),
+                       SwigType_namestr(c_classname),
+                       SwigType_namestr(name));
+          p = nextSibling(p);
+          output_director = false;
+        }
+      } else {
+        Swig_warning(WARN_DART_TYPEMAP_CTYPE_UNDEF,
+                     input_file,
+                     line_number,
+                     "No ctype typemap defined for %s for use in %s::%s (skipping director method)\n",
+                     SwigType_str(pt, 0),
+                     SwigType_namestr(c_classname),
+                     SwigType_namestr(name));
+        output_director = false;
+        p = nextSibling(p);
+      }
+
+      Delete(ln);
+      Delete(arg);
+      Delete(c_decl);
+    }
+
+    /* header declaration, start wrapper definition */
+    String *target;
+    SwigType *rtype = Getattr(n, "conversion_operator") ? 0 : Getattr(n, "classDirectorMethods:type");
+    target = Swig_method_decl(rtype, decl, qualified_name, l, 0);
+    Printf(w->def, "%s", target);
+    Delete(qualified_name);
+    Delete(target);
+    target = Swig_method_decl(rtype, decl, name, l, 1);
+    Printf(declaration, "    virtual %s", target);
+    Delete(target);
+
+    // Add any exception specifications to the methods in the director class
+    if (Getattr(n, "noexcept")) {
+      Append(w->def, " noexcept");
+      Append(declaration, " noexcept");
+    }
+    ParmList *throw_parm_list = NULL;
+    if ((throw_parm_list = Getattr(n, "throws")) || Getattr(n, "throw")) {
+      int gencomma = 0;
+
+      Append(w->def, " throw(");
+      Append(declaration, " throw(");
+
+      if (throw_parm_list)
+        Swig_typemap_attach_parms("throws", throw_parm_list, 0);
+      for (p = throw_parm_list; p; p = nextSibling(p)) {
+        if (Getattr(p, "tmap:throws")) {
+          if (gencomma++) {
+            Append(w->def, ", ");
+            Append(declaration, ", ");
+          }
+          Printf(w->def, "%s", SwigType_str(Getattr(p, "type"), 0));
+          Printf(declaration, "%s", SwigType_str(Getattr(p, "type"), 0));
+        }
+      }
+
+      Append(w->def, ")");
+      Append(declaration, ")");
+    }
+
+    Append(w->def, " {");
+    Append(declaration, ";\n");
+
+    /* The Dart callback calling the Dart method */
+    String *callback_name = NewStringf("_swigDirectorCallback%s_$dartclassname", overloaded_name);
+    String *callback_code = NewString("");
+    if (!ignored_method) {
+      String *upcall = NewStringf("swigSelf.%s(%s)", symname, upcall_args);
+      const char *exceptional = exceptionalReturn(im_return);
+      Printf(callback_code, "  static %s %s(ffi.Pointer<ffi.Void> swigCPtr%s) {\n", im_return, callback_name, dart_params);
+      Printf(callback_code, "    try {\n");
+      Printf(callback_code, "      final $dartclassname swigSelf = $imclassname.swigDirectors[swigCPtr.address] as $dartclassname;\n");
+      if ((tm = Swig_typemap_lookup("dartdirectorout", n, "", 0))) {
+        String *dout = Copy(tm);
+        substituteClassname(returntype, dout);
+        Replaceall(dout, "$module", module_class_name);
+        Replaceall(dout, "$imclassname", imclass_name);
+        Replaceall(dout, "$dartcall", upcall);
+        if (Len(pre_code) > 0)
+          Printv(callback_code, pre_code, "\n", NIL);
+        if (Len(post_code) > 0)
+          Printf(callback_code, "      try {\n        %s%s;\n      } finally {\n%s\n      }\n", is_void ? "" : "return ", dout, post_code);
+        else
+          Printf(callback_code, "      %s%s;\n", is_void ? "" : "return ", dout);
+        if (Len(terminator_code) > 0)
+          Printv(callback_code, terminator_code, "\n", NIL);
+        Delete(dout);
+      } else {
+        Swig_warning(WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF,
+                     input_file,
+                     line_number,
+                     "No dartdirectorout typemap defined for %s for use in %s::%s (skipping director method)\n",
+                     SwigType_str(returntype, 0),
+                     SwigType_namestr(c_classname),
+                     SwigType_namestr(name));
+        output_director = false;
+      }
+      // An exception cannot be thrown through the C++ code, it is reported as an uncaught error instead
+      Printf(callback_code, "    } catch (swigError, swigStackTrace) {\n");
+      Printf(callback_code, "      swig_async.Zone.current.handleUncaughtError(swigError, swigStackTrace);\n");
+      if (!is_void)
+        Printf(callback_code, "      return %s;\n", exceptional ? exceptional : "ffi.nullptr");
+      Printf(callback_code, "    }\n");
+      Printf(callback_code, "  }\n\n");
+      Delete(upcall);
+    }
+
+    if (!ignored_method) {
+      if (!is_void)
+        Printf(w->code, "jresult = (%s) ", c_ret_type);
+
+      Printf(w->code,
+             "swig_callback%s((void *)static_cast< const %s * >(this)%s);\n",
+             overloaded_name,
+             SwigType_namestr(Getattr(parent, "classtype")),
+             jupcall_args);
+
+      if (!is_void) {
+        String *jresult_str = NewString("jresult");
+        String *result_str = NewString("c_result");
+
+        /* Copy jresult into c_result... */
+        if ((tm = Swig_typemap_lookup("directorout", n, result_str, w))) {
+          Replaceall(tm, "$input", jresult_str);
+          Replaceall(tm, "$result", result_str);
+          Printf(w->code, "%s\n", tm);
+        } else {
+          Swig_warning(WARN_TYPEMAP_DIRECTOROUT_UNDEF,
+                       input_file,
+                       line_number,
+                       "Unable to use return type %s used in %s::%s (skipping director method)\n",
+                       SwigType_str(returntype, 0),
+                       SwigType_namestr(c_classname),
+                       SwigType_namestr(name));
+          output_director = false;
+        }
+
+        Delete(jresult_str);
+        Delete(result_str);
+      }
+
+      /* Marshal outputs */
+      for (p = l; p;) {
+        if ((tm = Getattr(p, "tmap:directorargout"))) {
+          canThrow(n, "directorargout", p);
+          Replaceall(tm, "$result", "jresult");
+          Replaceall(tm, "$input", Getattr(p, "emit:directorinput"));
+          Printv(w->code, tm, "\n", NIL);
+          p = Getattr(p, "tmap:directorargout:next");
+        } else {
+          p = nextSibling(p);
+        }
+      }
+
+      /* Terminate wrapper code */
+      Printf(w->code, "}\n");
+      if (!is_void)
+        Printf(w->code, "return %s;", qualified_return);
+    }
+
+    Printf(w->code, "}");
+
+    // We expose virtual protected methods via an extra public inline method which makes a straight call to the wrapped class' method
+    String *inline_extra_method = NewString("");
+    if (dirprot_mode() && !is_public(n) && !pure_virtual) {
+      Printv(inline_extra_method, declaration, NIL);
+      String *extra_method_name = NewStringf("%sSwigPublic", name);
+      Replaceall(inline_extra_method, name, extra_method_name);
+      Replaceall(inline_extra_method, ";\n", " {\n      ");
+      if (!is_void)
+        Printf(inline_extra_method, "return ");
+      String *methodcall = Swig_method_call(super, l);
+      Printv(inline_extra_method, methodcall, ";\n    }\n", NIL);
+      Delete(methodcall);
+      Delete(extra_method_name);
+    }
+
+    /* emit the director method */
+    if (status == SWIG_OK && output_director) {
+      if (!is_void) {
+        Replaceall(w->code, "$null", qualified_return);
+      } else {
+        Replaceall(w->code, "$null", "");
+      }
+      emit_isvoid_special_variables(0, w->code, is_void);
+      if (!Getattr(n, "defaultargs")) {
+        Replaceall(w->code, "$symname", symname);
+        Wrapper_print(w, f_directors);
+        Printv(f_directors_h, declaration, NIL);
+        Printv(f_directors_h, inline_extra_method, NIL);
+      }
+    }
+
+    if (!ignored_method && output_director && !Getattr(n, "defaultargs")) {
+      /* Record the director method for the director connect functions */
+      Hash *udata = NewHash();
+      String *methid = NewStringf("%d", curr_class_dmethod - first_class_dmethod);
+      Append(dmethods_seq, udata);
+      n_dmethods++;
+      curr_class_dmethod++;
+      Setattr(udata, "class_methodidx", methid);
+      Setattr(udata, "overname", overloaded_name);
+      Setattr(udata, "callback", callback_name);
+      Setattr(udata, "imreturn", im_return);
+      String *native = NewStringf("%s Function(ffi.Pointer<ffi.Void>%s)", ffi_return, native_params);
+      Setattr(udata, "native", native);
+      Delete(native);
+
+      Printf(director_callback_typedefs, "    typedef %s (SWIGSTDCALL* SWIG_Callback%s_t)(void *%s);\n", c_ret_type, methid, callback_typedef_parms);
+      Printf(director_callbacks, "    SWIG_Callback%s_t swig_callback%s;\n", methid, overloaded_name);
+      Printf(director_callbacks, "    mutable bool swig_reentry%s;\n", overloaded_name);
+      Printv(director_dart_callbacks, callback_code, NIL);
+      Delete(methid);
+      Delete(udata);
+    }
+
+    Delete(inline_extra_method);
+    Delete(callback_code);
+    Delete(callback_name);
+    Delete(pre_code);
+    Delete(post_code);
+    Delete(terminator_code);
+    Delete(qualified_return);
+    Delete(declaration);
+    Delete(callback_typedef_parms);
+    Delete(dart_params);
+    Delete(native_params);
+    Delete(upcall_args);
+    Delete(jupcall_args);
+    Delete(im_return);
+    Delete(ffi_return);
+    Delete(overloaded_name);
+    Delete(dirclassname);
+    DelWrapper(w);
+
+    return status;
+  }
+
+  /* ------------------------------------------------------------
+   * classDirectorConstructor()
+   * ------------------------------------------------------------ */
+
+  int classDirectorConstructor(Node *n) {
+    Node *parent = parentNode(n);
+    String *decl = Getattr(n, "decl");
+    String *dirclassname = directorClassName(parent);
+    Parm *p;
+    ParmList *superparms = Getattr(n, "parms");
+    ParmList *parms;
+    int argidx = 0;
+
+    /* Assign arguments to superclass's parameters, if not already done */
+    for (p = superparms; p; p = nextSibling(p)) {
+      String *pname = Getattr(p, "name");
+
+      if (!pname) {
+        pname = NewStringf("arg%d", argidx++);
+        Setattr(p, "name", pname);
+      }
+    }
+
+    parms = CopyParmList(superparms);
+
+    if (!Getattr(n, "defaultargs")) {
+      /* constructor */
+      {
+        String *basetype = Getattr(parent, "classtype");
+        String *target = Swig_method_decl(0, decl, dirclassname, parms, 0);
+        String *call = Swig_csuperclass_call(0, basetype, superparms);
+
+        Printf(f_directors, "%s::%s : %s, %s {\n", dirclassname, target, call, Getattr(parent, "director:ctor"));
+        Printf(f_directors, "  swig_init_callbacks();\n");
+        Printf(f_directors, "}\n\n");
+
+        Delete(target);
+        Delete(call);
+      }
+
+      /* constructor header */
+      {
+        String *target = Swig_method_decl(0, decl, dirclassname, parms, 1);
+        Printf(f_directors_h, "    %s;\n", target);
+        Delete(target);
+      }
+    }
+
+    Delete(parms);
+    Delete(dirclassname);
+    return Language::classDirectorConstructor(n);
+  }
+
+  /* ------------------------------------------------------------
+   * classDirectorDefaultConstructor()
+   * ------------------------------------------------------------ */
+
+  int classDirectorDefaultConstructor(Node *n) {
+    String *dirclassname = directorClassName(n);
+    Wrapper *w = NewWrapper();
+
+    Printf(w->def, "%s::%s() : %s {", dirclassname, dirclassname, Getattr(n, "director:ctor"));
+    Printf(w->code, "  swig_init_callbacks();\n");
+    Printf(w->code, "}\n");
+    Wrapper_print(w, f_directors);
+
+    Printf(f_directors_h, "    %s();\n", dirclassname);
+    DelWrapper(w);
+    Delete(dirclassname);
+    return Language::classDirectorDefaultConstructor(n);
+  }
+
+  /* ------------------------------------------------------------
+   * classDirectorInit()
+   * ------------------------------------------------------------ */
+
+  int classDirectorInit(Node *n) {
+    Delete(none_comparison);
+    none_comparison = NewString("");  // not used
+
+    Delete(director_ctor_code);
+    director_ctor_code = NewString("$director_new");
+
+    directorDeclaration(n);
+
+    Printf(f_directors_h, "%s {\n", Getattr(n, "director:decl"));
+    Printf(f_directors_h, "\npublic:\n");
+
+    /* Keep track of the director methods for this class */
+    first_class_dmethod = curr_class_dmethod = n_dmethods;
+
+    director_callback_typedefs = NewString("");
+    director_callbacks = NewString("");
+    director_dart_callbacks = NewString("");
+
+    return Language::classDirectorInit(n);
+  }
+
+  /* ------------------------------------------------------------
+   * classDeclaration()
+   * ------------------------------------------------------------ */
+
+  int classDeclaration(Node *n) {
+    String *old_director_callback_typedefs = director_callback_typedefs;
+    String *old_director_callbacks = director_callbacks;
+    String *old_director_dart_callbacks = director_dart_callbacks;
+    int old_first_class_dmethod = first_class_dmethod;
+    int old_curr_class_dmethod = curr_class_dmethod;
+    director_callback_typedefs = NULL;
+    director_callbacks = NULL;
+    director_dart_callbacks = NULL;
+    first_class_dmethod = curr_class_dmethod = n_dmethods;
+
+    int ret = Language::classDeclaration(n);
+
+    Delete(director_callback_typedefs);
+    Delete(director_callbacks);
+    Delete(director_dart_callbacks);
+    director_callback_typedefs = old_director_callback_typedefs;
+    director_callbacks = old_director_callbacks;
+    director_dart_callbacks = old_director_dart_callbacks;
+    first_class_dmethod = old_first_class_dmethod;
+    curr_class_dmethod = old_curr_class_dmethod;
+
+    return ret;
+  }
+
+  /* ----------------------------------------------------------------------
+   * classDirectorDestructor()
+   * ---------------------------------------------------------------------- */
+
+  int classDirectorDestructor(Node *n) {
+    Node *current_class = getCurrentClass();
+    String *dirclassname = directorClassName(current_class);
+    Wrapper *w = NewWrapper();
+
+    if (Getattr(n, "noexcept")) {
+      Printf(f_directors_h, "    virtual ~%s() noexcept;\n", dirclassname);
+      Printf(w->def, "%s::~%s() noexcept {\n", dirclassname, dirclassname);
+    } else if (Getattr(n, "throw")) {
+      Printf(f_directors_h, "    virtual ~%s() throw();\n", dirclassname);
+      Printf(w->def, "%s::~%s() throw() {\n", dirclassname, dirclassname);
+    } else {
+      Printf(f_directors_h, "    virtual ~%s();\n", dirclassname);
+      Printf(w->def, "%s::~%s() {\n", dirclassname, dirclassname);
+    }
+
+    Printv(w->code, "}\n", NIL);
+
+    Wrapper_print(w, f_directors);
+
+    DelWrapper(w);
+    Delete(dirclassname);
+    return SWIG_OK;
+  }
+
+  /* ------------------------------------------------------------
+   * classDirectorEnd()
+   * ------------------------------------------------------------ */
+
+  int classDirectorEnd(Node *n) {
+    int i;
+    String *dirclassname = directorClassName(n);
+
+    Wrapper *w = NewWrapper();
+
+    if (Len(director_callback_typedefs) > 0) {
+      Printf(f_directors_h, "\n%s", director_callback_typedefs);
+    }
+
+    Printf(f_directors_h, "    void swig_connect_director(");
+
+    Printf(w->def, "void %s::swig_connect_director(", dirclassname);
+
+    for (i = first_class_dmethod; i < curr_class_dmethod; ++i) {
+      Hash *udata = Getitem(dmethods_seq, i);
+      String *methid = Getattr(udata, "class_methodidx");
+      String *overname = Getattr(udata, "overname");
+
+      Printf(f_directors_h, "SWIG_Callback%s_t callback%s", methid, overname);
+      Printf(w->def, "SWIG_Callback%s_t callback%s", methid, overname);
+      Printf(w->code, "swig_callback%s = callback%s;\n", overname, overname);
+      if (i != curr_class_dmethod - 1) {
+        Printf(f_directors_h, ", ");
+        Printf(w->def, ", ");
+      }
+    }
+
+    Printf(f_directors_h, ");\n");
+    Printf(w->def, ") {");
+
+    if (Len(director_callbacks) > 0) {
+      Printf(f_directors_h, "\nprivate:\n%s", director_callbacks);
+    }
+    Printf(f_directors_h, "    void swig_init_callbacks();\n");
+    Printf(f_directors_h, "};\n\n");
+    Printf(w->code, "}\n\n");
+
+    Printf(w->code, "void %s::swig_init_callbacks() {\n", dirclassname);
+    for (i = first_class_dmethod; i < curr_class_dmethod; ++i) {
+      Hash *udata = Getitem(dmethods_seq, i);
+      String *overname = Getattr(udata, "overname");
+      Printf(w->code, "swig_callback%s = 0;\n", overname);
+      Printf(w->code, "swig_reentry%s = false;\n", overname);
+    }
+    Printf(w->code, "}");
+
+    Wrapper_print(w, f_directors);
+
+    DelWrapper(w);
+    Delete(dirclassname);
+
+    return Language::classDirectorEnd(n);
+  }
+
+  /* --------------------------------------------------------------------
+   * classDirectorDisown()
+   * ------------------------------------------------------------------*/
+
+  virtual int classDirectorDisown(Node *n) {
+    (void)n;
+    return SWIG_OK;
+  }
+
+  /*----------------------------------------------------------------------
+   * extraDirectorProtectedCPPMethodsRequired()
+   *--------------------------------------------------------------------*/
+
+  bool extraDirectorProtectedCPPMethodsRequired() const {
+    return false;
+  }
+
+  /*----------------------------------------------------------------------
+   * directorDeclaration()
+   *
+   * Generate the director class's declaration
+   * e.g. "class SwigDirector_myclass : public myclass, public Swig::Director {"
+   *--------------------------------------------------------------------*/
+
+  void directorDeclaration(Node *n) {
+    String *base = Getattr(n, "classtype");
+    String *class_ctor = NewString("Swig::Director()");
+
+    String *dirclassname = directorClassName(n);
+    String *declaration = Swig_class_declaration(n, dirclassname);
+
+    Printf(declaration, " : public %s, public Swig::Director", base);
+
+    // Stash stuff for later.
+    Setattr(n, "director:decl", declaration);
+    Setattr(n, "director:ctor", class_ctor);
+
+    Delete(dirclassname);
   }
 
   /* ----------------------------------------------------------------------
