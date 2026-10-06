@@ -1,7 +1,7 @@
 /* File : example.i */
 %module dynamic_cast
 
-#if !defined(SWIGJAVA) && !defined(SWIGCSHARP) && !defined(SWIGGO) && !defined(SWIGD)  && !defined(SWIGC)
+#if !defined(SWIGJAVA) && !defined(SWIGCSHARP) && !defined(SWIGGO) && !defined(SWIGD) && !defined(SWIGDART) && !defined(SWIGC)
 %apply SWIGTYPE *DYNAMIC { Foo * };
 #endif
 
@@ -17,7 +17,7 @@ public:
 };
 %}
 
-#if defined(SWIGJAVA) || defined(SWIGCSHARP) || defined(SWIGGO) || defined(SWIGD)  || defined(SWIGC)
+#if defined(SWIGJAVA) || defined(SWIGCSHARP) || defined(SWIGGO) || defined(SWIGD) || defined(SWIGDART) || defined(SWIGC)
 %typemap(out) Foo *blah {
     Bar *downcast = dynamic_cast<Bar *>($1);
     *(Bar **)&$result = downcast;
@@ -42,6 +42,13 @@ public:
   Bar ret = new Bar($imcall, $owner);$excode
   return ret;
 }
+#endif
+
+#if defined(SWIGDART)
+%typemap(dartout, excode=SWIGEXCODE) Foo * {
+    final ffi.Pointer<ffi.Void> cPtr = $imcall;$excode
+    return (cPtr == ffi.nullptr) ? null : Bar.swigFromPtr(cPtr, $owner);
+  }
 #endif
 
 #if defined(SWIGGO)
@@ -69,7 +76,7 @@ char *do_test(Bar *b) {
 }
 %}
 
-#if !defined(SWIGJAVA) && !defined(SWIGCSHARP) && !defined(SWIGGO) && !defined(SWIGD)  && !defined(SWIGC)
+#if !defined(SWIGJAVA) && !defined(SWIGCSHARP) && !defined(SWIGGO) && !defined(SWIGD) && !defined(SWIGDART) && !defined(SWIGC)
 // A general purpose function for dynamic casting of a Foo *
 %{
 static swig_type_info *

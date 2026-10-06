@@ -507,16 +507,32 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %apply SWIGTYPE (CLASS::*) { SWIGTYPE (CLASS::*const) }
 %apply SWIGTYPE & { SWIGTYPE (CLASS::*const&) }
 
-/* String & length */
-%typemap(ctype)    (char *STRING, size_t LENGTH) "char *"
-%typemap(ffitype)  (char *STRING, size_t LENGTH) "ffi.Pointer<ffi.Uint8>"
-%typemap(imtype)   (char *STRING, size_t LENGTH) "ffi.Pointer<ffi.Uint8>"
-%typemap(darttype) (char *STRING, size_t LENGTH) "String?"
-%typemap(in)       (char *STRING, size_t LENGTH) %{ $1 = ($1_ltype)$input;
-  $2 = $1 ? ($2_ltype)strlen((const char *)$1) : 0; %}
-%typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($dartinput);",
-         post="      $imclassname.swigFree(swig_$dartinput);") (char *STRING, size_t LENGTH) "swig_$dartinput"
-%apply (char *STRING, size_t LENGTH) { (char *STRING, int LENGTH) }
+/* String & length. The Dart string is passed as UTF-8 so it can contain null characters, the length is the number of bytes.
+ * The bytes are preceded by the length as a 64-bit integer in the memory passed to the C/C++ code. */
+%define %dart_string_length(STRING_PARMS, LEN_ARG, STR_ARG)
+%typemap(ctype)    STRING_PARMS "void *"
+%typemap(ffitype)  STRING_PARMS "ffi.Pointer<ffi.Void>"
+%typemap(imtype)   STRING_PARMS "ffi.Pointer<ffi.Void>"
+%typemap(darttype) STRING_PARMS "String?"
+%typemap(in)       STRING_PARMS %{ if ($input) {
+    STR_ARG = (STR_ARG##_ltype)((char *)$input + sizeof(long long));
+    LEN_ARG = (LEN_ARG##_ltype)*(long long *)$input;
+  } else {
+    STR_ARG = 0;
+    LEN_ARG = 0;
+  } %}
+%typemap(dartin, pre="    final ffi.Pointer<ffi.Void> swig_$dartinput = $imclassname.swigToNativeStringWithLength($dartinput);",
+         post="      $imclassname.swigFree(swig_$dartinput);") STRING_PARMS "swig_$dartinput"
+%typecheck(SWIG_TYPECHECK_STRING) STRING_PARMS ""
+%enddef
+
+%dart_string_length((const char *STRING, size_t LENGTH), $2, $1)
+%dart_string_length((size_t LENGTH, const char *STRING), $1, $2)
+%apply (const char *STRING, size_t LENGTH) { (char *STRING, size_t LENGTH), (const char *STRING, int LENGTH), (char *STRING, int LENGTH) }
+%apply (size_t LENGTH, const char *STRING) { (size_t LENGTH, char *STRING), (int LENGTH, const char *STRING), (int LENGTH, char *STRING) }
+
+/* operator() makes an object callable in Dart when renamed to call */
+%rename(call) *::operator();
 
 %include <dartkw.swg>
 %include <enums.swg>

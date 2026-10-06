@@ -162,6 +162,20 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
     return ptr;
   }
 
+  // Converts a Dart string into UTF-8 bytes preceded by the number of bytes as a 64-bit integer, which must be released with swigFree.
+  static ffi.Pointer<ffi.Void> swigToNativeStringWithLength(String? s) {
+    if (s == null) {
+      return ffi.nullptr;
+    }
+    final List<int> bytes = swig_convert.utf8.encode(s);
+    final ffi.Pointer<ffi.Void> ptr = swigMalloc(8 + bytes.length + 1);
+    ptr.cast<ffi.Int64>().value = bytes.length;
+    final typed = ffi.Pointer<ffi.Uint8>.fromAddress(ptr.address + 8).asTypedList(bytes.length + 1);
+    typed.setAll(0, bytes);
+    typed[bytes.length] = 0;
+    return ptr;
+  }
+
   // Converts a null terminated UTF-8 C string into a Dart string.
   static String? swigFromNativeString(ffi.Pointer<ffi.Uint8> ptr) {
     if (ptr == ffi.nullptr) {
