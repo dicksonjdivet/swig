@@ -7,6 +7,10 @@ the issue number to the end of the URL: https://github.com/swig/swig/issues/
 Version 4.6.0 (in progress)
 ===========================
 
+2026-10-06: dicksonjdivet
+            [Dart] Add support for Dart as a target language using dart:ffi. This support is
+            currently experimental.
+
 2026-10-04: wsfulton
             Fix a named non-type template parameter of class type introduced with the 'struct',
             'union' or 'class' keyword, which was taken to be a type parameter constrained by a

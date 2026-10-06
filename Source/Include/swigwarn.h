@@ -295,10 +295,9 @@
 #define WARN_DART_TYPEMAP_DARTBODY_UNDEF             786
 #define WARN_DART_TYPEMAP_DARTOUT_UNDEF              787
 #define WARN_DART_TYPEMAP_DARTIN_UNDEF               788
-#define WARN_DART_TYPEMAP_DARTDIRECTORIN_UNDEF       789
-#define WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF        790
-#define WARN_DART_EXCODE                             791
-#define WARN_DART_CANTHROW                           792
+#define WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF        789
+#define WARN_DART_EXCODE                             790
+#define WARN_DART_CANTHROW                           791
 
 /* please leave 780-799 free for Dart */
 

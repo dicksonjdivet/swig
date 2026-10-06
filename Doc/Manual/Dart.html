@@ -1,0 +1,829 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<title>SWIG and Dart</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</head>
+<body bgcolor="#FFFFFF">
+<H1><a name="Dart">41 SWIG and Dart</a></H1>
+<!-- INDEX -->
+<div class="sectiontoc">
+<ul>
+<li><a href="#Dart_overview">Overview</a>
+<li><a href="#Dart_preliminaries">Preliminaries</a>
+<ul>
+<li><a href="#Dart_running_swig">Running SWIG</a>
+<li><a href="#Dart_commandline">Additional command line options</a>
+<li><a href="#Dart_compiling">Compiling the native library</a>
+<li><a href="#Dart_running">Using the generated Dart library</a>
+</ul>
+<li><a href="#Dart_generated_code">Structure of the generated Dart code</a>
+<li><a href="#Dart_basics">C/C++ wrapping</a>
+<ul>
+<li><a href="#Dart_functions">Functions</a>
+<li><a href="#Dart_variables">Global variables</a>
+<li><a href="#Dart_constants">Constants</a>
+<li><a href="#Dart_enums">Enums</a>
+<li><a href="#Dart_classes">Classes</a>
+<li><a href="#Dart_overloading">Overloading and default arguments</a>
+<li><a href="#Dart_templates">Templates</a>
+<li><a href="#Dart_pointers">Pointers and references</a>
+</ul>
+<li><a href="#Dart_memory">Memory management</a>
+<li><a href="#Dart_strings">Strings</a>
+<li><a href="#Dart_exceptions">Exception handling</a>
+<li><a href="#Dart_stl">STL support</a>
+<li><a href="#Dart_typemaps">Typemaps</a>
+<li><a href="#Dart_limitations">Known limitations</a>
+</ul>
+</div>
+<!-- INDEX -->
+
+
+
+<p>
+<b>Caution: This chapter is under construction!</b>
+</p>
+
+<p>
+This chapter describes SWIG's support of Dart.
+Dart is a target language with Experimental status, see the <a href="Introduction.html#Introduction_target_languages">Target Languages</a>
+section for what that means.
+It can be used to wrap C and C++ libraries for use in Dart and Flutter applications.
+</p>
+
+<H2><a name="Dart_overview">41.1 Overview</a></H2>
+
+
+<p>
+The Dart module uses the <tt>dart:ffi</tt> library for calling C functions from Dart.
+SWIG generates a C/C++ wrapper file exporting a C function for each wrapped function, method, constructor, destructor and variable accessor,
+and a Dart library calling these C functions and providing Dart classes mirroring the C++ classes.
+The C/C++ wrapper file and the wrapped C/C++ code are compiled into a native shared library which is loaded when the Dart library is first used.
+</p>
+
+<p>
+The generated Dart code only uses the <tt>dart:</tt> core libraries, no other Dart packages are needed.
+Dart 3.0 or later is required.
+</p>
+
+<p>
+The Dart module is based on the C# module and the design is similar, so if you are familiar with the <a href="CSharp.html#CSharp">C# module</a>,
+much of this chapter will look familiar.
+The main features are:
+</p>
+
+<ul>
+<li>C functions, global variables and constants are wrapped in a module class. Variables are accessed using Dart getters and setters.</li>
+<li>C++ classes are wrapped by Dart proxy classes. Single inheritance, static members, overloaded methods, default arguments and templates are supported.</li>
+<li>C/C++ enums are wrapped by Dart enums.</li>
+<li>C/C++ strings and <tt>std::string</tt> are converted to and from a Dart <tt>String</tt>.</li>
+<li><tt>std::vector</tt> is wrapped by a class implementing the Dart <tt>List</tt> interface.</li>
+<li>C++ exceptions and other errors reported by the C/C++ code can be converted into Dart exceptions.</li>
+<li>The C++ objects owned by Dart are deleted when the Dart proxy object is garbage collected, using a <tt>NativeFinalizer</tt>, or when <tt>dispose()</tt> is called.</li>
+</ul>
+
+<p>
+Directors (calling Dart methods from C++ virtual methods) are not supported yet.
+</p>
+
+<H2><a name="Dart_preliminaries">41.2 Preliminaries</a></H2>
+
+
+<H3><a name="Dart_running_swig">41.2.1 Running SWIG</a></H3>
+
+
+<p>
+Suppose that you defined a SWIG module such as the following:
+</p>
+
+<div class="code">
+<pre>
+/* File: example.i */
+%module example
+
+%inline %{
+int gcd(int x, int y);
+extern double Foo;
+%}
+</pre>
+</div>
+
+<p>
+To build the Dart module, run SWIG using the <tt>-dart</tt> option:
+</p>
+
+<div class="shell">
+<pre>
+$ swig -dart example.i
+</pre>
+</div>
+
+<p>
+If building C++, add the <tt>-c++</tt> option:
+</p>
+
+<div class="shell">
+<pre>
+$ swig -c++ -dart example.i
+</pre>
+</div>
+
+<p>
+This creates the C/C++ wrapper file <tt>example_wrap.c</tt> or <tt>example_wrap.cxx</tt> and the Dart library <tt>example.dart</tt>.
+The Dart library is a single file containing all the Dart code generated for the module, it is named after the module name.
+The output directory for the Dart library can be changed with the <tt>-outdir</tt> option.
+</p>
+
+<p>
+As the Dart module is experimental, SWIG issues a warning when it is used. The warning can be suppressed with the <tt>-w524</tt> option.
+</p>
+
+<H3><a name="Dart_commandline">41.2.2 Additional command line options</a></H3>
+
+
+<p>
+The following table lists the additional command line options available for the Dart module. They can also be seen by using:
+</p>
+
+<div class="shell">
+<pre>
+$ swig -dart -help
+</pre>
+</div>
+
+<table summary="Dart specific options">
+<tr>
+<th>Dart specific options</th>
+</tr>
+
+<tr>
+<td>-libname &lt;name&gt;</td>
+<td>Set the base name of the native library loaded by the generated Dart code, the default is the module name</td>
+</tr>
+</table>
+
+<H3><a name="Dart_compiling">41.2.3 Compiling the native library</a></H3>
+
+
+<p>
+The C/C++ wrapper file must be compiled and linked into a shared library together with the code being wrapped.
+For example, on Linux:
+</p>
+
+<div class="shell">
+<pre>
+$ swig -dart example.i
+$ gcc -fPIC -c example.c example_wrap.c
+$ gcc -shared example.o example_wrap.o -o libexample.so
+</pre>
+</div>
+
+<p>
+No Dart or Flutter headers are needed to compile the wrapper.
+The shared library must be named after the module, or the name given by the <tt>-libname</tt> option, using the platform conventions:
+<tt>libexample.so</tt> on Linux and Android, <tt>libexample.dylib</tt> on macOS and <tt>example.dll</tt> on Windows.
+On iOS, the library is looked up in the <tt>example.framework</tt> framework, otherwise the symbols are looked up in the application itself,
+so the native code can be linked statically into the application.
+A library with a <tt>-d</tt> suffix, such as <tt>libexample-d.so</tt>, is also looked for, which is a common naming convention for debug builds.
+</p>
+
+<p>
+The library is opened using <tt>DynamicLibrary.open()</tt> from <tt>dart:ffi</tt>, so it must be in a location where the operating system looks for shared libraries,
+for example a directory listed in the <tt>LD_LIBRARY_PATH</tt> environment variable on Linux.
+For Flutter applications, the native library is usually built and bundled as part of a Flutter plugin.
+</p>
+
+<p>
+The library loading can be overridden by setting the static <tt>swigLibrary</tt> field of the intermediary class before the module is first used:
+</p>
+
+<div class="targetlang">
+<pre>
+import 'dart:ffi' as ffi;
+import 'example.dart';
+
+void main() {
+  exampleFFI.swigLibrary = ffi.DynamicLibrary.open('/opt/example/lib/libexample.so');
+  print(example.gcd(42, 105));
+}
+</pre>
+</div>
+
+<H3><a name="Dart_running">41.2.4 Using the generated Dart library</a></H3>
+
+
+<p>
+The generated Dart library is imported like any other Dart file:
+</p>
+
+<div class="targetlang">
+<pre>
+// File: runme.dart
+import 'example.dart';
+
+void main() {
+  print(example.gcd(42, 105));
+  example.Foo = 3.1415926;
+  print(example.Foo);
+}
+</pre>
+</div>
+
+<div class="shell">
+<pre>
+$ LD_LIBRARY_PATH=. dart run runme.dart
+21
+3.1415926
+</pre>
+</div>
+
+<H2><a name="Dart_generated_code">41.3 Structure of the generated Dart code</a></H2>
+
+
+<p>
+The generated Dart library contains the following, in a single file named after the module:
+</p>
+
+<ul>
+<li>
+The intermediary class, named after the module with an <tt>FFI</tt> suffix, such as <tt>exampleFFI</tt>.
+It loads the native library and contains a <tt>dart:ffi</tt> binding for each C function exported by the C/C++ wrapper.
+It also contains helper functions used by the rest of the generated code.
+The intermediary class name can be changed using the <tt>imclassname</tt> module option, for example, <tt>%module(imclassname="ExampleNative") example</tt>.
+</li>
+<li>
+The module class, named after the module, which contains static methods, getters and setters wrapping the global functions, variables and constants.
+</li>
+<li>
+A Dart class for each wrapped C++ class or C struct, called a proxy class, a Dart enum for each wrapped C/C++ enum
+and a type wrapper class for each type that SWIG does not know about, such as a pointer to a primitive type.
+</li>
+</ul>
+
+<p>
+The names of the generated Dart classes and members are the C/C++ names, unless renamed with <tt>%rename</tt>.
+SWIG renames names which are Dart keywords or that clash with names used by the generated code and issues a warning when doing so.
+The generated code starts with <tt>ignore_for_file</tt> comments disabling the Dart lints about naming conventions.
+</p>
+
+<p>
+When a module imports another module with <tt>%import</tt>, the generated Dart library imports the Dart library generated for the other module,
+so the Dart libraries of all the modules should be generated into the same directory.
+</p>
+
+<H2><a name="Dart_basics">41.4 C/C++ wrapping</a></H2>
+
+
+<H3><a name="Dart_functions">41.4.1 Functions</a></H3>
+
+
+<p>
+Global functions are wrapped as static methods of the module class:
+</p>
+
+<div class="code">
+<pre>
+%module example
+
+int gcd(int x, int y);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+abstract final class example {
+  static int gcd(int x, int y) {
+    final int ret = exampleFFI().gcd(x, y);
+    return ret;
+  }
+}
+</pre>
+</div>
+
+<p>
+The C/C++ types are mapped to the following Dart types:
+</p>
+
+<table border summary="Mapping of C/C++ types to Dart types">
+<tr>
+<th>C/C++ type</th>
+<th>Dart type</th>
+</tr>
+<tr><td><tt>bool</tt></td><td><tt>bool</tt></td></tr>
+<tr><td><tt>char</tt></td><td><tt>String</tt> containing a single character</td></tr>
+<tr><td><tt>signed char</tt>, <tt>unsigned char</tt>, <tt>short</tt>, <tt>unsigned short</tt>, <tt>int</tt>, <tt>unsigned int</tt>, <tt>long</tt>, <tt>unsigned long</tt>, <tt>long long</tt>, <tt>unsigned long long</tt>, <tt>size_t</tt></td><td><tt>int</tt></td></tr>
+<tr><td><tt>float</tt>, <tt>double</tt></td><td><tt>double</tt></td></tr>
+<tr><td><tt>char *</tt>, <tt>char []</tt></td><td><tt>String?</tt></td></tr>
+<tr><td><tt>std::string</tt>, <tt>const std::string &amp;</tt></td><td><tt>String</tt></td></tr>
+<tr><td>enum</td><td>Dart enum</td></tr>
+<tr><td>class by value and reference</td><td>proxy class</td></tr>
+<tr><td>pointer to a class</td><td>nullable proxy class, such as <tt>Shape?</tt></td></tr>
+<tr><td>other pointers</td><td>nullable type wrapper class, such as <tt>SWIGTYPE_p_int?</tt></td></tr>
+</table>
+
+<p>
+A Dart <tt>int</tt> is a 64-bit signed integer, so unsigned 64-bit values above <tt>0x7FFFFFFFFFFFFFFF</tt> are negative Dart integers.
+C/C++ integer values are truncated to the size of the C/C++ type as they are passed to the C/C++ code.
+The <tt>long</tt> and <tt>size_t</tt> types use the size of the native platform ABI.
+</p>
+
+<p>
+A NULL pointer is a Dart <tt>null</tt>.
+</p>
+
+<H3><a name="Dart_variables">41.4.2 Global variables</a></H3>
+
+
+<p>
+Global variables are wrapped by a static getter and setter in the module class:
+</p>
+
+<div class="targetlang">
+<pre>
+print(example.Foo);
+example.Foo = 3.1415926;
+</pre>
+</div>
+
+<p>
+Read only variables, such as those wrapped using <tt>%immutable</tt>, only have a getter.
+A getter for a variable of class type returns a proxy class instance referring to the variable rather than a copy of the variable.
+</p>
+
+<H3><a name="Dart_constants">41.4.3 Constants</a></H3>
+
+
+<p>
+Constants created with <tt>#define</tt> or <tt>%constant</tt> are wrapped by static final variables, which are initialized on first access
+by calling a C wrapper function returning the C constant value:
+</p>
+
+<div class="code">
+<pre>
+#define PI 3.14159
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+static final double PI = (() {
+  final double ret = exampleFFI().PI_get();
+  return ret;
+})();
+</pre>
+</div>
+
+<p>
+The <tt>%dartconst(1)</tt> directive can be used instead to generate a Dart <tt>const</tt> initialized with the C/C++ value.
+This only works if the C/C++ value is valid Dart code.
+The <tt>%dartconstvalue(value)</tt> directive can be used to specify the Dart value of a constant:
+</p>
+
+<div class="code">
+<pre>
+%dartconst(1) BIG;
+%dartconstvalue("0x7FFFFFFF") MAXINT;
+#define BIG 1000
+#define MAXINT 0x7FFFFFFFL
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+static const int BIG = 1000;
+static const int MAXINT = 0x7FFFFFFF;
+</pre>
+</div>
+
+<H3><a name="Dart_enums">41.4.4 Enums</a></H3>
+
+
+<p>
+Named C/C++ enums are wrapped by Dart enums.
+The value of the C/C++ enum is available from the <tt>swigValue</tt> getter and the static <tt>swigToEnum</tt> method
+looks up the Dart enum value from a C/C++ enum value:
+</p>
+
+<div class="code">
+<pre>
+enum Color { RED, BLUE = 10, GREEN };
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+final c = Color.BLUE;
+print(c.swigValue);          // 10
+print(Color.swigToEnum(11)); // Color.GREEN
+</pre>
+</div>
+
+<p>
+The values of the enum items are computed by SWIG when possible, otherwise they are obtained by calling a C wrapper function.
+A Dart enum cannot be declared in a class, so an enum declared in a C++ class is named after the class and the enum,
+for example, the enum <tt>Shape::Kind</tt> is wrapped as <tt>Shape_Kind</tt>.
+</p>
+
+<p>
+Anonymous enums are wrapped as integer constants in the module class or in the proxy class.
+Named enums can also be wrapped as integer constants using the <tt>%dartenum(simple)</tt> directive, or by including <tt>enumsimple.swg</tt> for all enums.
+</p>
+
+<H3><a name="Dart_classes">41.4.5 Classes</a></H3>
+
+
+<p>
+C++ classes and C structs are wrapped by Dart proxy classes.
+Member variables are wrapped by getters and setters, member functions by methods and static members by static members:
+</p>
+
+<div class="code">
+<pre>
+class Shape {
+public:
+  Shape(double x, double y);
+  virtual ~Shape();
+  double x, y;
+  virtual double area();
+  static int nshapes;
+};
+
+class Circle : public Shape {
+public:
+  Circle(double x, double y, double r);
+  virtual double area();
+};
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+final c = Circle(1.0, 2.0, 10.0);
+c.x = 3.0;
+print(c.area());
+print(Shape.nshapes);
+Shape s = c;
+print(s.area());  // calls Circle::area() as it is virtual
+</pre>
+</div>
+
+<p>
+Single inheritance is supported. A class can only have one base class in Dart, so additional base classes are ignored and warning 784 is issued.
+Abstract C++ classes are wrapped by ordinary Dart classes as instances of them can be returned from the C++ code.
+Covariant return types are supported.
+</p>
+
+<p>
+Nested classes are not supported by Dart, they are wrapped as top level classes, which means that nested classes with the same name
+in different classes need renaming to avoid a name clash.
+</p>
+
+<p>
+A constructor renamed with <tt>%rename</tt> to a name other than the class name is wrapped as a Dart named constructor, as a Dart class has a single unnamed constructor:
+</p>
+
+<div class="code">
+<pre>
+%rename(fromRadius) Circle::Circle(double r);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+final c = Circle.fromRadius(10.0);
+</pre>
+</div>
+
+<p>
+A wrapped <tt>operator()</tt> is renamed to <tt>call</tt> so that instances of the class can be called like a function in Dart.
+Other operators must be renamed with <tt>%rename</tt> to be wrapped.
+</p>
+
+<H3><a name="Dart_overloading">41.4.6 Overloading and default arguments</a></H3>
+
+
+<p>
+Dart does not support overloading. Overloaded C/C++ functions, methods and constructors are wrapped by a single Dart function taking
+<tt>Object?</tt> parameters, which calls the matching C/C++ overload at runtime by checking the type of the arguments.
+The overloads are checked in the order of precedence used by SWIG for the C++ overload resolution rules.
+A Dart <tt>int</tt> argument also matches a <tt>double</tt> parameter.
+An <tt>ArgumentError</tt> is thrown if there is no matching overload.
+The return type is <tt>dynamic</tt> unless all the overloads return the same type.
+</p>
+
+<div class="code">
+<pre>
+int value(int i);
+double value(double d);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+example.value(10);    // calls value(int)
+example.value(10.5);  // calls value(double)
+</pre>
+</div>
+
+<p>
+As several C++ types map to the same Dart type, some overloads cannot be distinguished in Dart.
+For example, <tt>value(int)</tt> and <tt>value(long)</tt> both take a Dart <tt>int</tt>.
+SWIG issues a warning and only wraps the first of these, use <tt>%rename</tt> to wrap the others with a different name.
+</p>
+
+<p>
+Functions with default arguments are wrapped with optional positional parameters. A missing or <tt>null</tt> argument uses the C++ default value:
+</p>
+
+<div class="code">
+<pre>
+void draw(int x, int y = 0, bool visible = true);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+example.draw(1);
+example.draw(1, 2);
+example.draw(1, 2, false);
+</pre>
+</div>
+
+<p>
+Constructors that are overloaded or have default arguments are wrapped by a Dart factory constructor.
+</p>
+
+<H3><a name="Dart_templates">41.4.7 Templates</a></H3>
+
+
+<p>
+Templates are wrapped as usual with SWIG, using <tt>%template</tt> to name the instantiations:
+</p>
+
+<div class="code">
+<pre>
+template&lt;class T&gt; struct Pair {
+  T first, second;
+};
+%template(IntPair) Pair&lt;int&gt;;
+</pre>
+</div>
+
+<H3><a name="Dart_pointers">41.4.8 Pointers and references</a></H3>
+
+
+<p>
+Pointers to classes are wrapped by nullable proxy classes, references and objects passed by value are wrapped by non-nullable proxy classes.
+Passing <tt>null</tt> where a reference or an object by value is expected throws an <tt>ArgumentError</tt>.
+</p>
+
+<p>
+Other pointers are wrapped by type wrapper classes named after the type, such as <tt>SWIGTYPE_p_int</tt> for <tt>int *</tt>.
+They can only be passed back to the C/C++ code.
+</p>
+
+<H2><a name="Dart_memory">41.5 Memory management</a></H2>
+
+
+<p>
+Each proxy class instance holds a pointer to the C++ object and a flag, <tt>swigCMemOwn</tt>, indicating whether the Dart instance owns the C++ object.
+C++ objects created from Dart by calling a constructor and objects returned by value are owned by Dart.
+Objects returned by pointer or reference are not owned by Dart, unless marked with <tt>%newobject</tt>.
+</p>
+
+<p>
+An owned C++ object is deleted when the Dart proxy instance is garbage collected, using a <tt>NativeFinalizer</tt> calling the C++ destructor.
+As garbage collection is not deterministic, the C++ object can be deleted earlier by calling the <tt>dispose()</tt> method:
+</p>
+
+<div class="targetlang">
+<pre>
+final c = Circle(1.0, 2.0, 10.0);
+print(c.area());
+c.dispose();  // calls the C++ destructor
+</pre>
+</div>
+
+<p>
+The proxy instance must not be used after calling <tt>dispose()</tt>.
+The proxy classes implement <tt>Finalizable</tt> from <tt>dart:ffi</tt>, so the Dart objects are not garbage collected while one of their methods is executing.
+</p>
+
+<p>
+As for the other target languages, care is needed when a C++ object refers to another C++ object, as the Dart garbage collector does not know about this.
+For example, the proxy instance returned by a getter for a member variable of class type refers to memory within the containing C++ object,
+so it must not be used after the containing object is deleted.
+</p>
+
+<H2><a name="Dart_strings">41.6 Strings</a></H2>
+
+
+<p>
+<tt>char *</tt> and <tt>char []</tt> are mapped to a nullable Dart <tt>String</tt> and <tt>std::string</tt> to a <tt>String</tt>, when <tt>std_string.i</tt> is included.
+The strings are converted to UTF-8 when passed to C/C++ and are converted from UTF-8 when returned to Dart.
+The C/C++ strings are copied in both directions, so the C/C++ code must not keep a pointer to a string passed to it from Dart after the call returns.
+</p>
+
+<p>
+The <tt>(const char *STRING, size_t LENGTH)</tt> and <tt>(size_t LENGTH, const char *STRING)</tt> multi-argument typemaps are available
+to pass a Dart <tt>String</tt> as a pointer and a length in bytes, so that the string can contain null characters:
+</p>
+
+<div class="code">
+<pre>
+%apply (const char *STRING, size_t LENGTH) { (const char *data, size_t len) };
+size_t count(const char *data, size_t len);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+print(example.count('a\u0000b'));  // 3
+</pre>
+</div>
+
+<H2><a name="Dart_exceptions">41.7 Exception handling</a></H2>
+
+
+<p>
+C++ exceptions and other errors cannot be propagated through <tt>dart:ffi</tt> calls.
+Instead, the C/C++ wrapper catches the C++ exception, records a pending exception and returns.
+The Dart code then checks for the pending exception and throws a Dart exception.
+The pending exception is stored in thread local storage.
+</p>
+
+<p>
+C++ exceptions listed in an exception specification or with <tt>%catches</tt> are handled by the <tt>throws</tt> typemaps, as for the other target languages.
+The exception classes from the C++ standard library are converted into Dart exceptions when <tt>std_except.i</tt> is included.
+Other exceptions can be handled using <tt>%exception</tt> and <tt>SWIG_exception</tt> from <tt>exception.i</tt>:
+</p>
+
+<div class="code">
+<pre>
+%include &lt;exception.i&gt;
+
+%exception {
+  try {
+    $action
+  } catch (std::exception &amp;e) {
+    SWIG_exception(SWIG_RuntimeError, e.what());
+  }
+}
+</pre>
+</div>
+
+<p>
+The C/C++ code can also set a pending exception directly by calling <tt>SWIG_DartSetPendingException()</tt> followed by a return.
+The error codes and the Dart exceptions they are converted to are:
+</p>
+
+<table border summary="C error codes and Dart exceptions">
+<tr>
+<th>C error code</th>
+<th>SWIG_exception error codes</th>
+<th>Dart exception</th>
+</tr>
+<tr><td><tt>SWIG_DartArgumentError</tt></td><td><tt>SWIG_ValueError</tt></td><td><tt>ArgumentError</tt></td></tr>
+<tr><td><tt>SWIG_DartArgumentNullError</tt></td><td><tt>SWIG_NullReferenceError</tt></td><td><tt>ArgumentError</tt></td></tr>
+<tr><td><tt>SWIG_DartRangeError</tt></td><td><tt>SWIG_IndexError</tt></td><td><tt>RangeError</tt></td></tr>
+<tr><td><tt>SWIG_DartStateError</tt></td><td></td><td><tt>StateError</tt></td></tr>
+<tr><td><tt>SWIG_DartUnsupportedError</tt></td><td></td><td><tt>UnsupportedError</tt></td></tr>
+<tr><td><tt>SWIG_DartException</tt>, <tt>SWIG_DartOutOfMemoryError</tt></td><td>all the other codes</td><td><tt>SwigException</tt></td></tr>
+</table>
+
+<p>
+<tt>SwigException</tt> is a class generated in the Dart library, which implements <tt>Exception</tt> and has a <tt>message</tt> field holding the error message.
+</p>
+
+<p>
+The Dart code only checks for a pending exception when the typemaps or features used by the wrapped function can set one.
+This is indicated by the <tt>canthrow</tt> attribute of the typemaps, see the <a href="CSharp.html#CSharp_exceptions">C# exceptions</a> section,
+as the Dart module uses the same mechanism.
+The <tt>%exception</tt> directive sets the <tt>canthrow</tt> attribute automatically.
+</p>
+
+<H2><a name="Dart_stl">41.8 STL support</a></H2>
+
+
+<p>
+The following STL library files are available:
+</p>
+
+<ul>
+<li><tt>std_string.i</tt> - <tt>std::string</tt> is converted to and from a Dart <tt>String</tt>.</li>
+<li><tt>std_vector.i</tt> - <tt>std::vector</tt> is wrapped by a class extending <tt>ListBase</tt> from <tt>dart:collection</tt>,
+so it can be used as a Dart <tt>List</tt> referring to the C++ vector.</li>
+<li><tt>std_pair.i</tt>, <tt>std_deque.i</tt> and <tt>std_except.i</tt>.</li>
+</ul>
+
+<div class="code">
+<pre>
+%include &lt;std_vector.i&gt;
+%template(IntVector) std::vector&lt;int&gt;;
+double average(const std::vector&lt;int&gt; &amp;v);
+</pre>
+</div>
+
+<div class="targetlang">
+<pre>
+final v = IntVector();
+v.addAll([1, 2, 3, 4]);
+print(v.where((i) =&gt; i &gt; 2).toList());  // [3, 4]
+print(example.average(v));                // 2.5
+</pre>
+</div>
+
+<H2><a name="Dart_typemaps">41.9 Typemaps</a></H2>
+
+
+<p>
+The Dart module uses the following typemaps.
+They are similar to the C# typemaps, which are listed in the <a href="CSharp.html#CSharp_differences_java">Differences to the Java module</a> section
+of the C# chapter, and to the Java typemaps documented in the <a href="Java.html#Java_typemaps">Java typemaps</a> section:
+</p>
+
+<table border summary="Dart typemaps">
+<tr>
+<th>Typemap</th>
+<th>Description</th>
+</tr>
+<tr><td><tt>ctype</tt></td><td>C type used in the exported C wrapper functions</td></tr>
+<tr><td><tt>ffitype</tt></td><td><tt>dart:ffi</tt> native type describing the C type, such as <tt>ffi.Int</tt> for <tt>int</tt></td></tr>
+<tr><td><tt>imtype</tt></td><td>Dart type corresponding to the <tt>ffitype</tt>, used in the intermediary class</td></tr>
+<tr><td><tt>darttype</tt></td><td>Dart type used in the proxy classes, type wrapper classes and module class</td></tr>
+<tr><td><tt>dartin</tt></td><td>Conversion of a Dart parameter from the <tt>darttype</tt> to the <tt>imtype</tt>, with optional <tt>pre</tt>, <tt>post</tt> and <tt>terminator</tt> attributes</td></tr>
+<tr><td><tt>dartout</tt></td><td>Conversion of the return value from the <tt>imtype</tt> to the <tt>darttype</tt>, the body of the Dart function</td></tr>
+<tr><td><tt>dartbase</tt>, <tt>dartinterfaces</tt>, <tt>dartinterfaces_derived</tt>, <tt>dartclassmodifiers</tt>, <tt>dartimports</tt>, <tt>dartcode</tt></td><td>Base class, implemented interfaces, class modifiers, imports and additional code for the generated classes</td></tr>
+<tr><td><tt>dartbody</tt>, <tt>dartbody_derived</tt></td><td>Main body of the proxy and type wrapper classes</td></tr>
+<tr><td><tt>dartdispose</tt>, <tt>dartdispose_derived</tt></td><td>The <tt>dispose</tt> method of the proxy classes</td></tr>
+<tr><td><tt>dartconstruct</tt></td><td>Initializer list of the proxy class constructors</td></tr>
+</table>
+
+<p>
+The special variables available in these typemaps include <tt>$dartclassname</tt>, <tt>$*dartclassname</tt>, <tt>$&amp;dartclassname</tt>,
+<tt>$dartinput</tt>, <tt>$imcall</tt>, <tt>$imclassname</tt>, <tt>$module</tt>, <tt>$owner</tt> and <tt>$excode</tt>,
+which are used in the same way as the corresponding C# special variables.
+</p>
+
+<p>
+For example, the following typemaps pass a C++ <tt>Color</tt> struct as a Dart <tt>int</tt> holding the RGB value:
+</p>
+
+<div class="code">
+<pre>
+struct Color { unsigned char r, g, b; };
+
+%typemap(ctype) Color "int"
+%typemap(ffitype) Color "ffi.Int"
+%typemap(imtype) Color "int"
+%typemap(darttype) Color "int"
+%typemap(in) Color %{ $1.r = ($input &gt;&gt; 16) &amp; 0xff; $1.g = ($input &gt;&gt; 8) &amp; 0xff; $1.b = $input &amp; 0xff; %}
+%typemap(out) Color %{ $result = ($1.r &lt;&lt; 16) | ($1.g &lt;&lt; 8) | $1.b; %}
+%typemap(dartin) Color "$dartinput"
+%typemap(dartout) Color {
+    return $imcall;
+  }
+</pre>
+</div>
+
+<p>
+The following pragmas can be used to customize the generated classes:
+</p>
+
+<table border summary="Dart pragmas">
+<tr>
+<th>Pragma</th>
+<th>Description</th>
+</tr>
+<tr><td><tt>%pragma(dart) imclassbase</tt>, <tt>imclassclassmodifiers</tt>, <tt>imclassinterfaces</tt>, <tt>imclasscode</tt></td><td>Base class, class modifiers, interfaces and additional code for the intermediary class</td></tr>
+<tr><td><tt>%pragma(dart) modulebase</tt>, <tt>moduleclassmodifiers</tt>, <tt>moduleinterfaces</tt>, <tt>modulecode</tt></td><td>Base class, class modifiers, interfaces and additional code for the module class</td></tr>
+<tr><td><tt>%pragma(dart) moduleimports</tt></td><td>Additional import directives for the generated Dart library</td></tr>
+<tr><td><tt>%pragma(dart) librarycode</tt></td><td>Additional top level code for the generated Dart library</td></tr>
+</table>
+
+<p>
+The <tt>%proxycode</tt> directive adds code to a proxy class, as for the other target languages.
+</p>
+
+<H2><a name="Dart_limitations">41.10 Known limitations</a></H2>
+
+
+<p>
+The Dart module is experimental and the following are not supported yet:
+</p>
+
+<ul>
+<li>Directors.</li>
+<li>The <tt>nspace</tt> feature and the <tt>%interface</tt> family of directives for multiple inheritance.</li>
+<li>Doxygen comments translation.</li>
+<li>C++ operators other than <tt>operator()</tt>, unless renamed.</li>
+<li>Many of the library files available for the other target languages, such as <tt>typemaps.i</tt>, <tt>cdata.i</tt>,
+<tt>std_map.i</tt>, <tt>std_shared_ptr.i</tt> and <tt>std_unique_ptr.i</tt>.</li>
+<li>A Dart method cannot be overridden by a method with incompatible parameter types, so a C++ method hiding a base class method
+with different parameter types, including overloads of the base class method, can generate Dart code that does not compile.</li>
+</ul>
+
+</body>
+</html>
