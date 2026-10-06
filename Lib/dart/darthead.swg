@@ -236,7 +236,6 @@ class SwigException implements Exception {
 
   SwigException(this.message);
 
-  @override
   String toString() => 'SwigException: ' + message;
 }
 %}

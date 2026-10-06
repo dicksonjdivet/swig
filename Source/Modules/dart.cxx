@@ -828,7 +828,9 @@ public:
   virtual int globalvariableHandler(Node *n) {
     variable_name = Getattr(n, "sym:name");
     global_variable_flag = true;
+    Setattr(n, "dart:vartype", Getattr(n, "type"));
     int ret = Language::globalvariableHandler(n);
+    Delattr(n, "dart:vartype");
     global_variable_flag = false;
     return ret;
   }
@@ -1095,8 +1097,12 @@ public:
       enum_constant_flag = false;
 
       if (!is_enum_item) {
+        // The getter has no parameters, a constant of function pointer type has the function parameters in its parms attribute
+        Swig_save("constantWrapperGetter", n, "parms", NIL);
+        Delattr(n, "parms");
         String *getter_name = Swig_name_get(getNSpace(), symname);
         String *body = proxyFunctionBody(n, getter_name, NULL, NULL);
+        Swig_restore(n);
         Printf(constants_code, "  static final %s %s = (() %s)();\n", return_type, itemname, body);
         Delete(body);
         Delete(getter_name);
@@ -1664,6 +1670,12 @@ public:
 
     // Transform return type used in the intermediary class function to type used in the Dart proxy function
     String *body = NULL;
+    SwigType *reftype = getterByReferenceType(n);
+    if (reftype) {
+      Swig_save("proxyFunctionBody", n, "type", "tmap:dartout", "tmap:dartout:excode", NIL);
+      Setattr(n, "type", reftype);
+      t = reftype;
+    }
     if ((tm = Swig_typemap_lookup("dartout", n, "", 0))) {
       body = Copy(tm);
       excodeSubstitute(n, body, "dartout", n);
@@ -1699,6 +1711,10 @@ public:
       Swig_warning(WARN_DART_TYPEMAP_DARTOUT_UNDEF, input_file, line_number, "No dartout typemap defined for %s\n", SwigType_str(t, 0));
       body = NewString("{}");
     }
+    if (reftype) {
+      Swig_restore(n);
+      Delete(reftype);
+    }
 
     Delete(pre_code);
     Delete(post_code);
@@ -1708,25 +1724,59 @@ public:
   }
 
   /* -----------------------------------------------------------------------------
+   * getterByReferenceType()
+   *
+   * The getter for a variable of class type held by value returns a pointer to the variable.
+   * The Dart typemaps for a reference are used instead of the ones for a pointer so that the
+   * Dart getter is not nullable. Returns the reference type to use for the Dart typemaps or NULL.
+   * ----------------------------------------------------------------------------- */
+
+  SwigType *getterByReferenceType(Node *n) {
+    String *accessor = Getattr(n, "dart:accessor");
+    SwigType *vartype = Getattr(n, "dart:vartype");
+    SwigType *t = Getattr(n, "type");
+    if (!accessor || !Equal(accessor, "get") || !vartype || !t)
+      return NULL;
+    SwigType *resolved_vartype = SwigType_typedef_resolve_all(vartype);
+    bool by_value = !SwigType_ispointer(resolved_vartype) && !SwigType_isreference(resolved_vartype) && !SwigType_isrvalue_reference(resolved_vartype) &&
+                    !SwigType_isarray(resolved_vartype);
+    Delete(resolved_vartype);
+    if (!by_value || !SwigType_ispointer(t))
+      return NULL;
+    SwigType *reftype = Copy(t);
+    Delete(SwigType_pop(reftype));
+    SwigType_add_reference(reftype);
+    return reftype;
+  }
+
+  /* -----------------------------------------------------------------------------
    * returnType()
    *
    * Returns the Dart return type of a function as a new string.
    * ----------------------------------------------------------------------------- */
 
   String *returnType(Node *n) {
+    SwigType *reftype = getterByReferenceType(n);
+    if (reftype) {
+      Swig_save("returnType", n, "type", NIL);
+      Setattr(n, "type", reftype);
+    }
     SwigType *t = Getattr(n, "type");
     String *return_type = NewString("");
     String *tm;
     if ((tm = Swig_typemap_lookup("darttype", n, "", 0))) {
-      // Note that in the case of polymorphic (covariant) return types, the method's return type is changed to be the base of the C++ return type
-      SwigType *covariant = Getattr(n, "covariant");
+      // Polymorphic (covariant) return types are supported in Dart
       String *darttypeout = Getattr(n, "tmap:darttype:out");  // the type in the darttype typemap's out attribute overrides the type in the typemap
       if (darttypeout)
         tm = darttypeout;
-      substituteClassname(covariant ? covariant : t, tm);
+      substituteClassname(t, tm);
       Printf(return_type, "%s", tm);
     } else {
       Swig_warning(WARN_DART_TYPEMAP_DARTTYPE_UNDEF, input_file, line_number, "No darttype typemap defined for %s\n", SwigType_str(t, 0));
+    }
+    if (reftype) {
+      Swig_restore(n);
+      Delete(reftype);
     }
     return return_type;
   }
@@ -2202,7 +2252,9 @@ public:
     variable_name = Getattr(n, "sym:name");
     wrapping_member_flag = true;
     variable_wrapper_flag = true;
+    Setattr(n, "dart:vartype", Getattr(n, "type"));
     Language::membervariableHandler(n);
+    Delattr(n, "dart:vartype");
     wrapping_member_flag = false;
     variable_wrapper_flag = false;
     return SWIG_OK;
@@ -2216,7 +2268,9 @@ public:
     variable_name = Getattr(n, "sym:name");
     wrapping_member_flag = true;
     static_flag = true;
+    Setattr(n, "dart:vartype", Getattr(n, "type"));
     Language::staticmembervariableHandler(n);
+    Delattr(n, "dart:vartype");
     wrapping_member_flag = false;
     static_flag = false;
     return SWIG_OK;

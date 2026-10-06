@@ -93,7 +93,7 @@ struct NewNames {
 %constant int new = 12;
 #endif
 
-#if !defined(SWIGC) && !defined(SWIGCSHARP) && !defined(SWIGD) && !defined(SWIGJAVA)
+#if !defined(SWIGC) && !defined(SWIGCSHARP) && !defined(SWIGD) && !defined(SWIGDART) && !defined(SWIGJAVA)
 // TODO: a keyword given as a %template name is not renamed as other names are.
 %warnfilter(SWIGWARN_PARSE_KEYWORD) NewMaker::make<int>;
 %inline %{
