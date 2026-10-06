@@ -102,11 +102,11 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
 
   static ffi.DynamicLibrary _swigOpenLibrary(String name) {
     final List<String> fileNames;
-    if (io.Platform.isWindows) {
+    if (swig_io.Platform.isWindows) {
       fileNames = [name + '.dll', name + '-d.dll'];
-    } else if (io.Platform.isIOS) {
+    } else if (swig_io.Platform.isIOS) {
       fileNames = [name + '.framework/' + name, 'lib' + name + '.dylib'];
-    } else if (io.Platform.isMacOS) {
+    } else if (swig_io.Platform.isMacOS) {
       fileNames = ['lib' + name + '.dylib', 'lib' + name + '-d.dylib'];
     } else {
       fileNames = ['lib' + name + '.so', 'lib' + name + '-d.so'];
@@ -119,7 +119,7 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
         error ??= e;
       }
     }
-    if (io.Platform.isIOS) {
+    if (swig_io.Platform.isIOS) {
       // Statically linked into the application
       return ffi.DynamicLibrary.process();
     }
@@ -154,7 +154,7 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
     if (s == null) {
       return ffi.nullptr;
     }
-    final List<int> bytes = convert.utf8.encode(s);
+    final List<int> bytes = swig_convert.utf8.encode(s);
     final ffi.Pointer<ffi.Uint8> ptr = swigMalloc(bytes.length + 1).cast<ffi.Uint8>();
     final typed = ptr.asTypedList(bytes.length + 1);
     typed.setAll(0, bytes);
@@ -171,7 +171,7 @@ SWIGEXPORT char * SWIGSTDCALL SWIG_DartTakePendingExceptionMessage_$module(void)
     while (ptr[length] != 0) {
       length++;
     }
-    return convert.utf8.decode(ptr.asTypedList(length), allowMalformed: true);
+    return swig_convert.utf8.decode(ptr.asTypedList(length), allowMalformed: true);
   }
 
   // Converts a null terminated UTF-8 C string into a Dart string and releases the C string.

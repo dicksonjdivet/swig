@@ -443,6 +443,10 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   static ffi.Pointer<ffi.Void> swigGetCPtr($dartclassname? obj) {
     return (obj == null) ? ffi.nullptr : obj._swigCPtr;
   }
+
+  static ffi.Pointer<ffi.Void> swigRelease($dartclassname? obj) {
+    return (obj == null) ? ffi.nullptr : obj._swigCPtr;
+  }
 %}
 
 // Type wrapper classes for pointers to class members
@@ -469,7 +473,6 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %}
 
 %typemap(dartdispose_derived) SWIGTYPE %{
-  @override
   void dispose() {
     if (swigCMemOwn) {
       swigCMemOwn = false;

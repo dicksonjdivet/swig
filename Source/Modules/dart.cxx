@@ -374,10 +374,10 @@ public:
     Printf(f_dart, "// ignore_for_file: camel_case_types, constant_identifier_names, non_constant_identifier_names\n");
     Printf(f_dart, "// ignore_for_file: unused_element, unused_field, unused_import, unnecessary_this\n\n");
 
-    Printf(f_dart, "import 'dart:collection' as collection;\n");
-    Printf(f_dart, "import 'dart:convert' as convert;\n");
+    Printf(f_dart, "import 'dart:collection' as swig_collection;\n");
+    Printf(f_dart, "import 'dart:convert' as swig_convert;\n");
     Printf(f_dart, "import 'dart:ffi' as ffi;\n");
-    Printf(f_dart, "import 'dart:io' as io;\n");
+    Printf(f_dart, "import 'dart:io' as swig_io;\n");
     Printv(f_dart, imported_modules, NIL);
     if (Len(module_imports) > 0)
       Printf(f_dart, "%s\n", module_imports);
@@ -1856,9 +1856,7 @@ public:
       List *types = Getattr(longest, "dart:paramtypes");
       for (int i = 0; i < max_params; i++) {
         String *type = Getitem(types, i);
-        if (i == min_params)
-          Printf(code, "[");
-        Printf(code, "%s%s%s arg%d", i > 0 ? ", " : "", type, (i >= min_params && !isNullableType(type)) ? "?" : "", i);
+        Printf(code, "%s%s%s%s arg%d", i > 0 ? ", " : "", i == min_params ? "[" : "", type, (i >= min_params && !isNullableType(type)) ? "?" : "", i);
       }
       Printf(code, "%s) {\n", min_params < max_params ? "]" : "");
 
@@ -1923,7 +1921,7 @@ public:
           } else {
             if (Len(condition) > 0)
               Printf(condition, " && ");
-            Printf(condition, "identical(arg%d, _swigNoArg)", i);
+            Printf(condition, "_swigNoArg == arg%d", i);
           }
         }
         Printf(call, ")");
@@ -1996,8 +1994,13 @@ public:
     String *typemap_lookup_type = Getattr(getCurrentClass(), "classtypeobj");
     String *construct_tm = Copy(typemapLookup(n, "dartconstruct", typemap_lookup_type, WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF, attributes));
 
+    // A constructor renamed in the interface file is a named constructor as Dart has a single unnamed constructor
+    String *symname = Getattr(n, "sym:name");
+    bool named_constructor = !Equal(symname, proxy_class_name);
+    String *constructor_name = named_constructor ? NewStringf("%s.%s", proxy_class_name, symname) : Copy(proxy_class_name);
+
     // The constructor helper function returning the pointer to the new C++ object
-    String *helper_name = NewStringf("_swigConstruct%s", Getattr(n, "sym:overname") ? Getattr(n, "sym:overname") : "");
+    String *helper_name = NewStringf("_swigConstruct%s%s", named_constructor ? symname : "", Getattr(n, "sym:overname") ? Getattr(n, "sym:overname") : "");
     Printf(proxy_class_code, "  static ffi.Pointer<ffi.Void> %s(%s) %s\n\n", helper_name, param_decls, helper_body);
 
     String *helper_call = NewStringf("%s(", helper_name);
@@ -2016,7 +2019,7 @@ public:
     const String *methodmods = Getattr(n, "feature:dart:methodmodifiers");
     if (Getattr(n, "sym:overloaded")) {
       // Dart does not support overloaded constructors, each overload is a named constructor and a factory constructor dispatches to them
-      String *impl_name = NewStringf("%s._swigCreate%s", proxy_class_name, Getattr(n, "sym:overname"));
+      String *impl_name = NewStringf("%s._swigCreate%s%s", proxy_class_name, named_constructor ? symname : "", Getattr(n, "sym:overname"));
       Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", impl_name, ctor_params, construct_tm);
       Setattr(n, "dart:implname", impl_name);
       Setattr(n, "dart:paramtypes", param_types);
@@ -2025,10 +2028,10 @@ public:
       Printv(proxy_class_code, function_code, NIL);
       if (!Getattr(n, "sym:nextSibling")) {
         String *dispatcher = NewString("");
-        emitOverloadDispatcher(n, dispatcher, proxy_class_name, false);
+        emitOverloadDispatcher(n, dispatcher, constructor_name, false);
         // The dispatcher is a factory constructor
-        String *dispatcher_start = NewStringf("  %s %s(", proxy_class_name, proxy_class_name);
-        String *factory_start = NewStringf("  factory %s(", proxy_class_name);
+        String *dispatcher_start = NewStringf("  %s %s(", proxy_class_name, constructor_name);
+        String *factory_start = NewStringf("  factory %s(", constructor_name);
         Replace(dispatcher, dispatcher_start, factory_start, DOH_REPLACE_FIRST);
         Printv(proxy_class_code, dispatcher, NIL);
         Delete(factory_start);
@@ -2036,10 +2039,11 @@ public:
         Delete(dispatcher);
       }
     } else {
-      Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", proxy_class_name, ctor_params, construct_tm);
+      Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, ctor_params, construct_tm);
       Printv(proxy_class_code, function_code, NIL);
     }
 
+    Delete(constructor_name);
     Delete(ctor_params);
     Delete(helper_call);
     Delete(helper_name);
@@ -2501,9 +2505,9 @@ public:
       if (enumname) {
         replacementname = Copy(enumname);
       } else {
-        bool anonymous_enum = (Cmp(classnametype, "enum ") == 0);
-        if (anonymous_enum) {
-          // Anonymous enums are wrapped as integers, the enum conversion functions are not needed
+        // Anonymous enums and unknown enums - ones that have not been parsed (neither a C enum forward reference nor a
+        // definition) or ignored enums - are wrapped as integers, the enum conversion functions are not needed
+        {
           String *toenum = NewStringf("%s.swigToEnum", classnamespecialvariable);
           String *tovalue = NewStringf("%s.swigToValue", classnamespecialvariable);
           Replaceall(tm, toenum, "");
@@ -2511,11 +2515,6 @@ public:
           Delete(tovalue);
           Delete(toenum);
           replacementname = NewString("int");
-        } else {
-          // An unknown enum - one that has not been parsed (neither a C enum forward reference nor a definition) or an ignored enum
-          replacementname = NewStringf("SWIGTYPE%s", SwigType_manglestr(classnametype));
-          Replace(replacementname, "enum ", "", DOH_REPLACE_ANY);
-          Setattr(swig_types_hash, replacementname, classnametype);
         }
       }
     } else {

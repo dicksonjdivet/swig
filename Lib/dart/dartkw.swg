@@ -91,12 +91,8 @@ DARTCORETYPE(double);
 DARTCORETYPE(int);
 DARTCORETYPE(num);
 
-/* Import prefixes and functions used in the generated code */
-DARTKW(collection);
-DARTKW(convert);
+/* Import prefix used in the generated code */
 DARTKW(ffi);
-DARTKW(identical);
-DARTKW(io);
 
 /* Members of Dart enums */
 DARTENUMKW(index);
