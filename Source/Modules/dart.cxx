@@ -477,7 +477,8 @@ public:
     if (Len(library_pragma_code) > 0) {
       Replaceall(library_pragma_code, "$module", module_class_name);
       Replaceall(library_pragma_code, "$imclassname", imclass_name);
-      Printv(f_dart, library_pragma_code, "\n", NIL);
+      trimCode(library_pragma_code);
+      Printv(f_dart, library_pragma_code, "\n\n", NIL);
     }
 
     // The intermediary class
@@ -486,11 +487,11 @@ public:
       Printf(f_dart, " extends %s", imclass_baseclass);
     if (Len(imclass_interfaces) > 0)
       Printf(f_dart, " implements %s", imclass_interfaces);
-    Printf(f_dart, " {\n");
     Replaceall(imclass_class_code, "$module", module_class_name);
     Replaceall(imclass_class_code, "$imclassname", imclass_name);
     Replaceall(imclass_class_code, "$dllimport", libname);
-    Printv(f_dart, imclass_class_code, "}\n\n", NIL);
+    printClassBody(f_dart, imclass_class_code);
+    Printf(f_dart, "\n");
 
     // The module class
     Printf(f_dart, "%s%s%s", module_class_modifiers, Len(module_class_modifiers) > 0 ? " " : "", module_class_name);
@@ -498,19 +499,48 @@ public:
       Printf(f_dart, " extends %s", module_baseclass);
     if (Len(module_interfaces) > 0)
       Printf(f_dart, " implements %s", module_interfaces);
-    Printf(f_dart, " {\n");
     Replaceall(module_class_code, "$module", module_class_name);
     Replaceall(module_class_code, "$imclassname", imclass_name);
     Replaceall(module_class_code, "$dllimport", libname);
     Replaceall(module_class_constants_code, "$module", module_class_name);
     Replaceall(module_class_constants_code, "$imclassname", imclass_name);
     Replaceall(module_class_constants_code, "$dllimport", libname);
-    Printv(f_dart, module_class_code, module_class_constants_code, "}\n", NIL);
+    String *module_body = NewStringf("%s%s", module_class_code, module_class_constants_code);
+    printClassBody(f_dart, module_body);
+    Delete(module_body);
 
     // Proxy classes, enums and type wrapper classes
-    Printv(f_dart, library_code, NIL);
+    trimCode(library_code);
+    if (Len(library_code) > 0)
+      Printv(f_dart, "\n", library_code, "\n", NIL);
 
     Delete(f_dart);
+  }
+
+  /* -----------------------------------------------------------------------------
+   * trimCode()
+   *
+   * Remove the leading empty lines and the trailing whitespace from a block of Dart code.
+   * ----------------------------------------------------------------------------- */
+
+  static void trimCode(String *code) {
+    while (Len(code) > 0 && (*Char(code) == '\n' || *Char(code) == '\r'))
+      Delitem(code, 0);
+    Chop(code);
+  }
+
+  /* -----------------------------------------------------------------------------
+   * printClassBody()
+   *
+   * Print the body of a Dart class, without empty lines at the start and the end.
+   * ----------------------------------------------------------------------------- */
+
+  static void printClassBody(File *f, String *body) {
+    trimCode(body);
+    if (Len(body) > 0)
+      Printf(f, " {\n%s\n}\n", body);
+    else
+      Printf(f, " {}\n");
   }
 
   /* ----------------------------------------------------------------------
@@ -1311,7 +1341,8 @@ public:
           Delete(imclass_class_modifiers);
           imclass_class_modifiers = Copy(strvalue);
         } else if (Strcmp(code, "imclasscode") == 0) {
-          Printf(imclass_class_code, "%s\n", strvalue);
+          trimCode(strvalue);
+          Printf(imclass_class_code, "%s\n\n", strvalue);
         } else if (Strcmp(code, "imclassinterfaces") == 0) {
           Delete(imclass_interfaces);
           imclass_interfaces = Copy(strvalue);
@@ -1322,7 +1353,8 @@ public:
           Delete(module_class_modifiers);
           module_class_modifiers = Copy(strvalue);
         } else if (Strcmp(code, "modulecode") == 0) {
-          Printf(module_class_code, "%s\n", strvalue);
+          trimCode(strvalue);
+          Printf(module_class_code, "%s\n\n", strvalue);
         } else if (Strcmp(code, "moduleimports") == 0) {
           Delete(module_imports);
           module_imports = Copy(strvalue);
@@ -1330,7 +1362,8 @@ public:
           Delete(module_interfaces);
           module_interfaces = Copy(strvalue);
         } else if (Strcmp(code, "librarycode") == 0) {
-          Printf(library_pragma_code, "%s\n", strvalue);
+          trimCode(strvalue);
+          Printf(library_pragma_code, "%s\n\n", strvalue);
         } else {
           Swig_error(input_file, line_number, "Unrecognized pragma.\n");
         }
@@ -1591,13 +1624,11 @@ public:
     Replaceall(proxy_class_code, "$dllimport", libname);
     Replaceall(proxy_class_constants_code, "$dllimport", libname);
 
-    Printv(library_code, proxy_class_def, proxy_class_code, NIL);
-
-    // Write out all the constants
-    if (Len(proxy_class_constants_code) != 0)
-      Printv(library_code, proxy_class_constants_code, NIL);
-
-    Printf(library_code, "}\n\n");
+    // The class body, without an empty line before the closing brace
+    String *class_code = NewStringf("%s%s%s", proxy_class_def, proxy_class_code, proxy_class_constants_code);
+    Chop(class_code);
+    Printv(library_code, class_code, "\n}\n\n", NIL);
+    Delete(class_code);
 
     emitDirectorExtraMethods(n);
 
@@ -1804,7 +1835,7 @@ public:
       if (alternative) {
         String *combined;
         if (Cmp(t, "void") == 0)
-          combined = NewStringf("if (swigDirectorConnected) %s; else %s", alternative, imcall);
+          combined = NewStringf("if (swigDirectorConnected)\n      %s;\n    else\n      %s", alternative, imcall);
         else
           combined = NewStringf("(swigDirectorConnected ? %s : %s)", alternative, imcall);
         Clear(imcall);
@@ -2934,18 +2965,18 @@ public:
     Printf(proxy_class_code, "  void _swigDirectorConnect_$dartclassname() {\n");
     Printf(proxy_class_code, "    swigDirectorConnected = true;\n");
     Printf(proxy_class_code, "    $imclassname.swigDirectors[_swigCPtr_$dartclassname.address] = this;\n");
-    Printf(proxy_class_code, "    $imclassname().%s(_swigCPtr_$dartclassname", director_connect_method_name);
+    Printf(proxy_class_code, "    $imclassname().%s(\n      _swigCPtr_$dartclassname,\n", director_connect_method_name);
     for (int i = first_class_dmethod; i < curr_class_dmethod; ++i) {
       Hash *udata = Getitem(dmethods_seq, i);
       const char *exceptional = exceptionalReturn(Getattr(udata, "imreturn"));
       Printf(proxy_class_code,
-             ",\n        ffi.Pointer.fromFunction<%s>(%s%s%s)",
+             "      ffi.Pointer.fromFunction<%s>(%s%s%s),\n",
              Getattr(udata, "native"),
              Getattr(udata, "callback"),
              exceptional ? ", " : "",
              exceptional ? exceptional : "");
     }
-    Printf(proxy_class_code, ");\n");
+    Printf(proxy_class_code, "    );\n");
     Printf(proxy_class_code, "  }\n\n");
     Printv(proxy_class_code, director_dart_callbacks, NIL);
     Delete(director_connect_method_name);
