@@ -17,7 +17,7 @@ top_srcdir   = ../@top_srcdir@
 top_builddir = ../@top_builddir@
 
 # The following tests are currently broken and need to be fixed.
-# Library files not yet available for Dart: argcargv.i, cdata.i, std_auto_ptr.i, std_map.i, std_unique_ptr.i, std_wstring.i, typemaps.i.
+# Library files not yet available for Dart: argcargv.i, cdata.i, std_auto_ptr.i, std_map.i (cpp11_shared_ptr_upcast), std_unique_ptr.i, std_wstring.i, typemaps.i.
 # Nested classes are flattened, so nested classes with the same name in different classes clash.
 # Dart has no method overloading or hiding, so an overload dispatcher cannot be overridden by a method with a different signature.
 # The string and length typemaps do not support directors.
@@ -56,6 +56,10 @@ FAILING_CPP_TESTS := \
 	using_nested_member_typedef \
 
 FAILING_MULTI_CPP_TESTS := \
+
+CPP_TEST_CASES = \
+	dart_object_members \
+	dart_shared_ptr \
 
 include $(srcdir)/../common.mk
 

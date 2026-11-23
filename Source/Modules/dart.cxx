@@ -173,7 +173,8 @@ public:
     // Look for certain command line options
     for (int i = 1; i < argc; i++) {
       if (argv[i]) {
-        if (strcmp(argv[i], "-libname") == 0) {
+        // Not -libname: SWIG takes any option starting with -l as -l<file> before the language options
+        if (strcmp(argv[i], "-dllimport") == 0) {
           if (argv[i + 1]) {
             libname = NewString(argv[i + 1]);
             Swig_mark_arg(i);
@@ -674,6 +675,10 @@ public:
       // Emit warnings for the few cases that can't be overloaded in Dart and give up on generating wrapper
       Swig_overload_check(n);
       if (Getattr(n, "overload:ignore")) {
+        // The dispatcher is emitted with the last overload, even if that one cannot be wrapped. Whether an overload is ignored is only known
+        // when it is wrapped (the typecheck typemaps used to compare it to the others are attached then), so not earlier.
+        if (!Getattr(n, "sym:nextSibling") && !is_wrapping_class() && !enum_constant_flag)
+          emitOverloadDispatcher(n, module_class_code, Getattr(n, "sym:name"), true);
         DelWrapper(f);
         return SWIG_OK;
       }
@@ -2015,6 +2020,40 @@ public:
   }
 
   /* -----------------------------------------------------------------------------
+   * emitConstructorDispatcher()
+   *
+   * The Dart constructor of a class with overloaded constructors: it calls the static function
+   * dispatching to the constructor helper functions of the overloads. Emitted with the last
+   * overload, n.
+   * ----------------------------------------------------------------------------- */
+
+  void emitConstructorDispatcher(Node *n) {
+    String *symname = Getattr(n, "sym:name");
+    bool named_constructor = !Equal(symname, proxy_class_name);
+    String *constructor_name = named_constructor ? NewStringf("%s.%s", proxy_class_name, symname) : Copy(proxy_class_name);
+    String *typemap_lookup_type = Getattr(getCurrentClass(), "classtypeobj");
+    String *construct_tm = Copy(typemapLookup(n, "dartconstruct", typemap_lookup_type, WARN_DART_TYPEMAP_DARTCONSTRUCT_UNDEF));
+    const String *methodmods = Getattr(n, "feature:dart:methodmodifiers");
+
+    String *dispatch_name = NewStringf("_swigConstructDispatch%s", named_constructor ? symname : "");
+    String *dispatch_params = NewString("");
+    String *dispatch_args = NewString("");
+    emitOverloadDispatcher(n, proxy_class_code, dispatch_name, true, dispatch_params, dispatch_args);
+    String *dispatch_call = NewStringf("%s(%s)", dispatch_name, dispatch_args);
+    // Any pending exception is checked in the helper functions
+    Replaceall(construct_tm, "$imcall", dispatch_call);
+    Replaceall(construct_tm, "$excode", "");
+    Printf(proxy_class_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, dispatch_params, construct_tm);
+
+    Delete(dispatch_call);
+    Delete(dispatch_args);
+    Delete(dispatch_params);
+    Delete(dispatch_name);
+    Delete(construct_tm);
+    Delete(constructor_name);
+  }
+
+  /* -----------------------------------------------------------------------------
    * overloadImplName()
    *
    * Name of the private Dart function implementing one of the overloads of a function.
@@ -2215,8 +2254,12 @@ public:
 
   void proxyClassFunctionHandler(Node *n) {
     // Wrappers not wanted for some methods where the parameters cannot be overloaded in Dart
-    if (Getattr(n, "overload:ignore"))
+    if (Getattr(n, "overload:ignore")) {
+      // The dispatcher is emitted with the last overload, even if that one cannot be wrapped
+      if (!Getattr(n, "sym:nextSibling"))
+        emitOverloadDispatcher(n, proxy_class_code, Getattr(n, "proxyfuncname"), static_flag);
       return;
+    }
 
     // Don't generate proxy method for additional explicitcall method used in directors
     if (GetFlag(n, "explicitcall"))
@@ -2236,8 +2279,12 @@ public:
     Language::constructorHandler(n);
 
     // Wrappers not wanted for some methods where the parameters cannot be overloaded in Dart
-    if (Getattr(n, "overload:ignore"))
+    if (Getattr(n, "overload:ignore")) {
+      // The dispatcher is emitted with the last overload, even if that one cannot be wrapped
+      if (!Getattr(n, "sym:nextSibling"))
+        emitConstructorDispatcher(n);
       return SWIG_OK;
+    }
 
     String *overloaded_name = getOverloadedName(n);
     String *mangled_overname = Swig_name_construct(getNSpace(), overloaded_name);
@@ -2280,19 +2327,8 @@ public:
       Setattr(n, "dart:implname", helper_name);
       Setattr(n, "dart:paramtypes", param_types);
       Setattr(n, "dart:returntype", "ffi.Pointer<ffi.Void>");
-      if (!Getattr(n, "sym:nextSibling")) {
-        String *dispatch_name = NewStringf("_swigConstructDispatch%s", named_constructor ? symname : "");
-        String *dispatch_params = NewString("");
-        String *dispatch_args = NewString("");
-        emitOverloadDispatcher(n, proxy_class_code, dispatch_name, true, dispatch_params, dispatch_args);
-        String *dispatch_call = NewStringf("%s(%s)", dispatch_name, dispatch_args);
-        Replaceall(construct_tm, helper_call, dispatch_call);
-        Printf(proxy_class_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, dispatch_params, construct_tm);
-        Delete(dispatch_call);
-        Delete(dispatch_args);
-        Delete(dispatch_params);
-        Delete(dispatch_name);
-      }
+      if (!Getattr(n, "sym:nextSibling"))
+        emitConstructorDispatcher(n);
     } else {
       Printf(function_code, "  %s%s(%s) : %s;\n\n", methodmods ? methodmods : "", constructor_name, ctor_params, construct_tm);
       Printv(proxy_class_code, function_code, NIL);
@@ -3870,5 +3906,5 @@ extern "C" Language *swig_dart(void) {
 
 const char *DART::usage = "\
 Dart Options (available with -dart)\n\
-     -libname <name> - Set the base name of the native library to load, the default is the module name\n\
+     -dllimport <name> - Set the base name of the native library to load, the default is the module name\n\
 \n";

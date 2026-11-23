@@ -12,6 +12,9 @@
 
 #define DARTCLASSKW(x) %keywordwarn("'" `x` "' is a special method name used in the Dart wrapper classes",%$ismember,rename="%s_") `x`
 
+/* Global functions and variables are static members of the module class, which can't have the name of an instance member of Object */
+#define DARTMODULEKW(x) %keywordwarn("'" `x` "' is a member of Object, so it can't be the name of a static member of the Dart module class",%$not %$ismember,%$not %$isclass,rename="%s_") `x`
+
 /*
    Reserved words, from
    https://dart.dev/language/keywords
@@ -109,10 +112,17 @@ DARTCLASSKW(swigCMemOwn);
 DARTCLASSKW(swigDirectorConnected);
 DARTCLASSKW(toString);
 
+/* Members of Object, for the global functions and variables */
+DARTMODULEKW(hashCode);
+DARTMODULEKW(noSuchMethod);
+DARTMODULEKW(runtimeType);
+DARTMODULEKW(toString);
+
 #undef DARTKW
 #undef DARTBUILTINKW
 #undef DARTCORETYPE
 #undef DARTENUMKW
 #undef DARTCLASSKW
+#undef DARTMODULEKW
 
 #endif //DART_DARTKW_SWG_

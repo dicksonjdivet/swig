@@ -157,7 +157,7 @@ $ swig -dart -help
 </tr>
 
 <tr>
-<td>-libname &lt;name&gt;</td>
+<td>-dllimport &lt;name&gt;</td>
 <td>Set the base name of the native library loaded by the generated Dart code, the default is the module name</td>
 </tr>
 </table>
@@ -180,7 +180,7 @@ $ gcc -shared example.o example_wrap.o -o libexample.so
 
 <p>
 No Dart or Flutter headers are needed to compile the wrapper.
-The shared library must be named after the module, or the name given by the <tt>-libname</tt> option, using the platform conventions:
+The shared library must be named after the module, or the name given by the <tt>-dllimport</tt> option, using the platform conventions:
 <tt>libexample.so</tt> on Linux and Android, <tt>libexample.dylib</tt> on macOS and <tt>example.dll</tt> on Windows.
 On iOS, the library is looked up in the <tt>example.framework</tt> framework, otherwise the symbols are looked up in the application itself,
 so the native code can be linked statically into the application.
@@ -263,6 +263,8 @@ and a type wrapper class for each type that SWIG does not know about, such as a 
 <p>
 The names of the generated Dart classes and members are the C/C++ names, unless renamed with <tt>%rename</tt>.
 SWIG renames names which are Dart keywords or that clash with names used by the generated code and issues a warning when doing so.
+This includes the members of <tt>Object</tt> (<tt>toString</tt>, <tt>hashCode</tt>, <tt>noSuchMethod</tt> and <tt>runtimeType</tt>)
+for class members and for global functions and variables, which are static members of the module class: a trailing underscore is added, e.g. <tt>toString_</tt>.
 The generated code starts with <tt>ignore_for_file</tt> comments disabling the Dart lints about naming conventions.
 </p>
 
@@ -726,6 +728,9 @@ The following STL library files are available:
 <li><tt>std_string.i</tt> - <tt>std::string</tt> is converted to and from a Dart <tt>String</tt>.</li>
 <li><tt>std_vector.i</tt> - <tt>std::vector</tt> is wrapped by a class extending <tt>ListBase</tt> from <tt>dart:collection</tt>,
 so it can be used as a Dart <tt>List</tt> referring to the C++ vector.</li>
+<li><tt>std_array.i</tt> - <tt>std::array</tt> is wrapped by a class extending <tt>ListBase</tt> too, a fixed-length Dart <tt>List</tt>:
+the methods changing the length throw an <tt>UnsupportedError</tt>.</li>
+<li><tt>std_shared_ptr.i</tt> - <tt>std::shared_ptr</tt>, see <a href="#Dart_shared_ptr">Shared pointers</a>.</li>
 <li><tt>std_pair.i</tt>, <tt>std_deque.i</tt> and <tt>std_except.i</tt>.</li>
 </ul>
 
@@ -884,6 +889,27 @@ The following pragmas can be used to customize the generated classes:
 The <tt>%proxycode</tt> directive adds code to a proxy class, as for the other target languages.
 </p>
 
+<H3 id="Dart_shared_ptr">41.8.1 Shared pointers</H3>
+
+
+<p>
+<tt>std_shared_ptr.i</tt> provides the <tt>%shared_ptr</tt> macro, as for the other target languages.
+The proxy of a class marked with <tt>%shared_ptr</tt> holds a <tt>std::shared_ptr</tt> to the C++ object, instead of a plain pointer,
+and the C++ object is deleted when its last <tt>std::shared_ptr</tt> goes, whether it is held by Dart or by C++.
+The class can be passed and returned by value, reference or pointer and as a <tt>std::shared_ptr</tt> by value, reference or pointer.
+An empty <tt>std::shared_ptr</tt> is <tt>null</tt> in Dart, so the <tt>std::shared_ptr</tt> types are nullable.
+Each class of a hierarchy marked with <tt>%shared_ptr</tt> holds its own <tt>std::shared_ptr</tt> in a proxy instance,
+and <tt>dispose()</tt> releases all of them.
+</p>
+
+<div class="code">
+<pre>
+%include &lt;std_shared_ptr.i&gt;
+%shared_ptr(Shape)
+%shared_ptr(Circle)
+</pre>
+</div>
+
 <H2 id="Dart_limitations">41.11 Known limitations</H2>
 
 
@@ -892,12 +918,12 @@ The Dart module is experimental and the following are not supported yet:
 </p>
 
 <ul>
-<li>Smart pointers, such as <tt>std::shared_ptr</tt> and the <tt>smartptr</tt> feature.</li>
+<li>Smart pointers other than <tt>std::shared_ptr</tt>, and directors for a class marked with <tt>%shared_ptr</tt>.</li>
 <li>The <tt>nspace</tt> feature and the <tt>%interface</tt> family of directives for multiple inheritance.</li>
 <li>Doxygen comments translation.</li>
 <li>C++ operators other than <tt>operator()</tt>, unless renamed.</li>
 <li>Many of the library files available for the other target languages, such as <tt>typemaps.i</tt>, <tt>cdata.i</tt>,
-<tt>std_map.i</tt>, <tt>std_shared_ptr.i</tt> and <tt>std_unique_ptr.i</tt>.</li>
+<tt>std_map.i</tt> and <tt>std_unique_ptr.i</tt>.</li>
 <li>A Dart method cannot be overridden by a method with incompatible parameter types, so a C++ method hiding a base class method
 with different parameter types, including overloads of the base class method, can generate Dart code that does not compile.</li>
 </ul>

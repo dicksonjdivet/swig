@@ -7,6 +7,26 @@ the issue number to the end of the URL: https://github.com/swig/swig/issues/
 Version 4.6.0 (in progress)
 ===========================
 
+2026-11-23: dicksonjdivet
+            [Dart] Add std_array.i and std_shared_ptr.i (with boost_shared_ptr.i for the %shared_ptr
+            macro). Each class of a hierarchy marked with %shared_ptr holds its own shared_ptr in a
+            proxy, and dispose() releases all of them. Directors are not supported for these classes.
+
+2026-11-23: dicksonjdivet
+            [Dart] The command line option naming the native library is -dllimport, as in C#: SWIG
+            takes any option starting with -l as -l<file> before the language options, so -libname
+            could not be used.
+
+2026-11-23: dicksonjdivet
+            [Dart] The public function of an overloaded function, method or constructor was missing
+            when its last overload is ignored, e.g. f(A &) and f(A *), which can't be told apart in
+            Dart: it is now emitted with the last overload even when that one is ignored.
+
+2026-11-23: dicksonjdivet
+            [Dart] Global functions and variables named toString, hashCode, noSuchMethod or
+            runtimeType are renamed with a trailing underscore and Warning 314: they are static
+            members of the module class, which can't have the name of an instance member of Object.
+
 2026-11-21: wsfulton
             [Python] #3528 The str() method of the std::ostringstream and std::wostringstream
             classes in std_sstream.i was annotated with -typehints as returning "str". The method
