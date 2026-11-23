@@ -663,7 +663,7 @@ public:
     emit_parameter_variables(l, f);
 
     /* Attach the standard typemaps */
-    emit_attach_parmmaps(l, f);
+    emit_attach_parm_typemaps(l, f);
 
     // Parameter overloading
     Setattr(n, "wrap:parms", l);
@@ -686,9 +686,7 @@ public:
     // Now walk the function parameter list and generate code to get arguments
     for (i = 0, p = l; i < num_arguments; i++) {
 
-      while (checkAttribute(p, "tmap:in:numinputs", "0")) {
-        p = Getattr(p, "tmap:in:next");
-      }
+      p = emit_ignored_in_typemaps(p, f->code);
 
       SwigType *pt = Getattr(p, "type");
       String *ln = Getattr(p, "lname");
@@ -738,6 +736,7 @@ public:
       Delete(c_param_type);
       Delete(arg);
     }
+    p = emit_ignored_in_typemaps(p, f->code);
 
     /* Insert constraint checking code */
     for (p = l; p;) {
@@ -782,7 +781,7 @@ public:
     // Look for usage of throws typemap and the canthrow flag
     ParmList *throw_parm_list = NULL;
     if ((throw_parm_list = Getattr(n, "catchlist"))) {
-      Swig_typemap_attach_parms("throws", throw_parm_list, f);
+      Swig_typemap_attach_parms("throws", throw_parm_list, 0);
       for (p = throw_parm_list; p; p = nextSibling(p)) {
         if (Getattr(p, "tmap:throws")) {
           canThrow(n, "throws", p);
@@ -806,6 +805,12 @@ public:
         Append(f->code, "}\n");
       }
       String *actioncode = emit_action(n);
+
+      // The action of a variable setter is the memberin or globalin typemap
+      if (Getattr(n, "memberset"))
+        canThrow(n, "memberin", n);
+      else if (Getattr(n, "varset"))
+        canThrow(n, "globalin", n);
 
       /* Return value if necessary  */
       if ((tm = Swig_typemap_lookup_out("out", n, Swig_cresult_name(), f, actioncode))) {
@@ -890,8 +895,9 @@ public:
       // throwing Dart exceptions from C/C++ code. It checks for the common methods which
       // set a pending Dart exception... the 'canthrow' typemap/feature attribute must be set
       // so that code which checks for pending exceptions is added in the Dart proxy method.
+      // SWIG_exception is a SWIG preprocessor macro, so it is usually found as the SWIG_DartThrowException call it expands to.
       if (!Getattr(n, "dart:canthrow")) {
-        if (Strstr(f->code, "SWIG_exception")) {
+        if (Strstr(f->code, "SWIG_exception") || Strstr(f->code, "SWIG_DartThrowException(")) {
           Swig_warning(WARN_DART_CANTHROW,
                        input_file,
                        line_number,
@@ -2719,7 +2725,7 @@ public:
   bool substituteClassname(SwigType *pt, String *tm) {
     bool substitution_performed = false;
     SwigType *type = Copy(SwigType_typedef_resolve_all(pt));
-    SwigType *strippedtype = SwigType_strip_qualifiers(type);
+    SwigType *strippedtype = SwigType_strip_qualifiers_except_member_function(type);
 
     if (Strstr(tm, "$dartclassname")) {
       SwigType *classnametype = Copy(strippedtype);
@@ -2868,7 +2874,7 @@ public:
    * If so, note it for later when excodeSubstitute() is called.
    * ----------------------------------------------------------------------------- */
 
-  void canThrow(Node *n, const String *typemap, Node *parameter) {
+  void canThrow(Node *n, const_String_or_char_ptr typemap, Node *parameter) {
     String *canthrow_attribute = NewStringf("tmap:%s:canthrow", typemap);
     String *canthrow = Getattr(parameter, canthrow_attribute);
     if (canthrow)
@@ -3135,13 +3141,15 @@ public:
                something other than a NULL-initialized reference. */
             SwigType *noref_type = SwigType_del_reference(Copy(returntype));
             String *noref_ltype = SwigType_lstr(noref_type, 0);
-            String *return_ltype = SwigType_lstr(returntype, 0);
+            String *result_default_decl = SwigType_lstr(noref_type, "result_default");
+            String *c_result_decl = SwigType_lstr(returntype, "c_result");
 
-            Wrapper_add_localv(w, "result_default", "static", noref_ltype, "result_default", NIL);
-            Wrapper_add_localv(w, "c_result", return_ltype, "c_result", NIL);
+            Wrapper_add_localv(w, "result_default", "static", result_default_decl, NIL);
+            Wrapper_add_localv(w, "c_result", c_result_decl, NIL);
             Printf(w->code, "result_default = SwigValueInit< %s >();\n", noref_ltype);
             Printf(w->code, "c_result = &result_default;\n");
-            Delete(return_ltype);
+            Delete(c_result_decl);
+            Delete(result_default_decl);
             Delete(noref_ltype);
             Delete(noref_type);
           }
@@ -3387,42 +3395,15 @@ public:
     /* header declaration, start wrapper definition */
     String *target;
     SwigType *rtype = Getattr(n, "conversion_operator") ? 0 : Getattr(n, "classDirectorMethods:type");
-    target = Swig_method_decl(rtype, decl, qualified_name, l, 0);
+    String *exception_specification = Swig_director_exception_specification(n);
+    target = Swig_method_decl(rtype, decl, qualified_name, l, 0, exception_specification);
     Printf(w->def, "%s", target);
     Delete(qualified_name);
     Delete(target);
-    target = Swig_method_decl(rtype, decl, name, l, 1);
+    target = Swig_method_decl(rtype, decl, name, l, 1, exception_specification);
     Printf(declaration, "    virtual %s", target);
     Delete(target);
-
-    // Add any exception specifications to the methods in the director class
-    if (Getattr(n, "noexcept")) {
-      Append(w->def, " noexcept");
-      Append(declaration, " noexcept");
-    }
-    ParmList *throw_parm_list = NULL;
-    if ((throw_parm_list = Getattr(n, "throws")) || Getattr(n, "throw")) {
-      int gencomma = 0;
-
-      Append(w->def, " throw(");
-      Append(declaration, " throw(");
-
-      if (throw_parm_list)
-        Swig_typemap_attach_parms("throws", throw_parm_list, 0);
-      for (p = throw_parm_list; p; p = nextSibling(p)) {
-        if (Getattr(p, "tmap:throws")) {
-          if (gencomma++) {
-            Append(w->def, ", ");
-            Append(declaration, ", ");
-          }
-          Printf(w->def, "%s", SwigType_str(Getattr(p, "type"), 0));
-          Printf(declaration, "%s", SwigType_str(Getattr(p, "type"), 0));
-        }
-      }
-
-      Append(w->def, ")");
-      Append(declaration, ")");
-    }
+    Delete(exception_specification);
 
     Append(w->def, " {");
     Append(declaration, ";\n");

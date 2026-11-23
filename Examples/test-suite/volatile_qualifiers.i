@@ -53,7 +53,7 @@ int const_volatile_int_value(const volatile int i);
 int char_volatile_ptr(char *volatile s);
 int item_volatile_ptr(Item *volatile p);
 // TODO: fix the wrappers of a volatile class passed by value, which copy it from a pointer to volatile and do not compile
-#if !defined(SWIGCSHARP) && !defined(SWIGD) && !defined(SWIGGO) && !defined(SWIGJAVA)
+#if !defined(SWIGCSHARP) && !defined(SWIGD) && !defined(SWIGDART) && !defined(SWIGGO) && !defined(SWIGJAVA)
 int volatile_item_value(volatile Item i);
 int const_volatile_item_value(const volatile Item i);
 #endif

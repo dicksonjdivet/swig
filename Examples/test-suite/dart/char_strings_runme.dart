@@ -79,10 +79,8 @@ void main() {
     char_strings.global_char = '$OTHERLAND_MSG$i';
     check(char_strings.global_char, '$OTHERLAND_MSG$i', 'Test variables 1');
   }
-  for (var i = 0; i < count; i++) {
-    char_strings.global_char_array1 = '$OTHERLAND_MSG$i';
-    check(char_strings.global_char_array1, '$OTHERLAND_MSG$i', 'Test variables 2');
-  }
+  // global_char_array1 is a char[] with no size, so it is read only
+  check(char_strings.global_char_array1, CPLUSPLUS_MSG, 'Test variables 2');
   for (var i = 0; i < count; i++) {
     char_strings.global_char_array2 = '$OTHERLAND_MSG$i';
     check(char_strings.global_char_array2, '$OTHERLAND_MSG$i', 'Test variables 3');

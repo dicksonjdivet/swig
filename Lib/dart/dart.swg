@@ -256,23 +256,47 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %{ temp = ($*1_ltype)$input;
    $1 = ($1_ltype)&temp; %}
 %typemap(in, fragment="SWIG_UnPackData") SWIGTYPE (CLASS::*) %{
-  SWIG_UnpackData($input, (void *)&$1, sizeof($1));
+  $1 = 0;
+  if ($input) {
+    SWIG_UnpackData($input, (void *)&$1, sizeof($1));
+  }
 %}
 
 %typemap(out) SWIGTYPE *, SWIGTYPE &, SWIGTYPE && %{ $result = (void *)$1; %}
 %typemap(out) SWIGTYPE [] %{ $result = (void *)$1; %}
 %typemap(out) SWIGTYPE *const& %{ $result = (void *)*$1; %}
 %typemap(out, fragment="SWIG_PackData") SWIGTYPE (CLASS::*) %{
-  char buf[128];
-  char *data = SWIG_PackData(buf, (void *)&$1, sizeof($1));
-  *data = '\0';
-  $result = SWIG_DartStrdup(buf);
+  if ($1) {
+    char buf[128];
+    char *data = SWIG_PackData(buf, (void *)&$1, sizeof($1));
+    *data = '\0';
+    $result = SWIG_DartStrdup(buf);
+  }
 %}
 
-%typemap(directorin) SWIGTYPE *, SWIGTYPE (CLASS::*) %{ $input = (void *) $1; %}
+%typemap(directorin) SWIGTYPE * %{ $input = (void *) $1; %}
+%typemap(directorin, fragment="SWIG_PackData") SWIGTYPE (CLASS::*) %{
+  $input = 0;
+  if ($1) {
+    char $1_buf[128];
+    char *data = SWIG_PackData($1_buf, (void *)&$1, sizeof($1));
+    *data = '\0';
+    $input = SWIG_DartStrdup($1_buf);
+  }
+%}
 %typemap(directorin) SWIGTYPE *const& %{ $input = (void *) $1; %}
 %typemap(directorin) SWIGTYPE &, SWIGTYPE && %{ $input = ($1_ltype) &$1; %}
-%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE *, SWIGTYPE (CLASS::*) %{ $result = ($1_ltype)$input; %}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG) SWIGTYPE * %{ $result = ($1_ltype)$input; %}
+/* The packed member pointer string is allocated by the Dart director method */
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_DIRECTOROUT_PTR_MSG, fragment="SWIG_UnPackData") SWIGTYPE (CLASS::*) %{
+  if ($input) {
+    SWIG_UnpackData($input, (void *)&$result, sizeof($result));
+    free($input);
+  }
+%}
+/* A function pointer does not point to an object that can be deleted, so there is no warning as for SWIGTYPE * */
+%typemap(directorout) SWIGTYPE ((*)(ANY)), SWIGTYPE ((* const)(ANY))
+%{ $result = ($1_ltype)$input; %}
 %typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG) SWIGTYPE *const&
 %{ static $*1_ltype swig_temp;
    swig_temp = ($*1_ltype)$input;
@@ -313,11 +337,13 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   }
 
 %typemap(dartdirectorin) SWIGTYPE "$&dartclassname.swigFromPtr($iminput, true)"
-%typemap(dartdirectorin) SWIGTYPE *, SWIGTYPE (CLASS::*) "(($iminput == ffi.nullptr) ? null : $dartclassname.swigFromPtr($iminput, false))"
+%typemap(dartdirectorin) SWIGTYPE * "(($iminput == ffi.nullptr) ? null : $dartclassname.swigFromPtr($iminput, false))"
+%typemap(dartdirectorin) SWIGTYPE (CLASS::*) "$dartclassname.swigFromNativeCMemberPtr($iminput)"
 %typemap(dartdirectorin) SWIGTYPE &, SWIGTYPE && "$dartclassname.swigFromPtr($iminput, false)"
 %typemap(dartdirectorin) SWIGTYPE *const& "(($iminput == ffi.nullptr) ? null : $*dartclassname.swigFromPtr($iminput, false))"
 %typemap(dartdirectorout) SWIGTYPE "$&dartclassname.swigGetCPtr($dartcall)"
-%typemap(dartdirectorout) SWIGTYPE *, SWIGTYPE (CLASS::*), SWIGTYPE &, SWIGTYPE && "$dartclassname.swigGetCPtr($dartcall)"
+%typemap(dartdirectorout) SWIGTYPE *, SWIGTYPE &, SWIGTYPE && "$dartclassname.swigGetCPtr($dartcall)"
+%typemap(dartdirectorout) SWIGTYPE (CLASS::*) "$imclassname.swigToNativeString($dartclassname.swigGetCMemberPtr($dartcall))"
 %typemap(dartdirectorout) SWIGTYPE *const& "$*dartclassname.swigGetCPtr($dartcall)"
 
 /* Typecheck typemaps - The purpose of these is merely to issue a warning for overloaded C++ functions
@@ -337,7 +363,7 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 %typecheck(SWIG_TYPECHECK_FLOAT) float, const float & ""
 %typecheck(SWIG_TYPECHECK_DOUBLE) double, const double & ""
 %typecheck(SWIG_TYPECHECK_STRING) char *, char *&, char[ANY], char[] ""
-%typecheck(SWIG_TYPECHECK_POINTER) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE *const&, SWIGTYPE [], SWIGTYPE (CLASS::*) ""
+%typecheck(SWIG_TYPECHECK_POINTER) SWIGTYPE, SWIGTYPE *, SWIGTYPE &, SWIGTYPE &&, SWIGTYPE *const&, SWIGTYPE [], SWIGTYPE (CLASS::*), SWIGTYPE (CLASS::*const&) ""
 
 /* Exception handling */
 
@@ -464,7 +490,58 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
   static String? swigGetCMemberPtr($dartclassname? obj) {
     return obj?._swigCMemberPtr;
   }
+
+  static $dartclassname? swigFromNativeCMemberPtr(ffi.Pointer<ffi.Uint8> cMemberPtr) {
+    final String? s = $imclassname.swigFromNativeStringAndFree(cMemberPtr);
+    return (s == null) ? null : $dartclassname.swigFromCMemberPtr(s, false);
+  }
 %}
+
+/* Member pointer reference typemaps */
+%typemap(ctype) SWIGTYPE (CLASS::*const&) "char *"
+%typemap(ffitype) SWIGTYPE (CLASS::*const&) "ffi.Pointer<ffi.Uint8>"
+%typemap(imtype) SWIGTYPE (CLASS::*const&) "ffi.Pointer<ffi.Uint8>"
+%typemap(darttype) SWIGTYPE (CLASS::*const&) "$*dartclassname?"
+%typemap(dartin, pre="    final ffi.Pointer<ffi.Uint8> swig_$dartinput = $imclassname.swigToNativeString($*dartclassname.swigGetCMemberPtr($dartinput));",
+         post="      $imclassname.swigFree(swig_$dartinput);") SWIGTYPE (CLASS::*const&) "swig_$dartinput"
+%typemap(dartout, excode=SWIGEXCODE) SWIGTYPE (CLASS::*const&) {
+    final String? cMemberPtr = $imclassname.swigFromNativeStringAndFree($imcall);$excode
+    return (cMemberPtr == null) ? null : $*dartclassname.swigFromCMemberPtr(cMemberPtr, $owner);
+  }
+%typemap(in, fragment="SWIG_UnPackData") (SWIGTYPE (CLASS::*const&)) ($*1_ltype temp = 0) %{
+  if ($input) {
+    SWIG_UnpackData($input, (void *)&temp, sizeof(temp));
+  }
+  $1 = &temp;
+%}
+%typemap(out, fragment="SWIG_PackData") SWIGTYPE (CLASS::*const&) %{
+  if (*$1) {
+    char buf[128];
+    char *data = SWIG_PackData(buf, (void *)$1, sizeof(*$1));
+    *data = '\0';
+    $result = SWIG_DartStrdup(buf);
+  }
+%}
+%typemap(directorin, fragment="SWIG_PackData") SWIGTYPE (CLASS::*const&) %{
+  $input = 0;
+  if ($1) {
+    char $1_buf[128];
+    char *data = SWIG_PackData($1_buf, (void *)&$1, sizeof($1));
+    *data = '\0';
+    $input = SWIG_DartStrdup($1_buf);
+  }
+%}
+%typemap(directorout, warning=SWIGWARN_TYPEMAP_THREAD_UNSAFE_MSG, fragment="SWIG_UnPackData") SWIGTYPE (CLASS::*const&) %{
+  static SwigTypeIdentity< $*1_ltype >::type swig_temp;
+  swig_temp = 0;
+  if ($input) {
+    SWIG_UnpackData($input, (void *)&swig_temp, sizeof(swig_temp));
+    free($input);
+  }
+  $result = &swig_temp;
+%}
+%typemap(dartdirectorin) SWIGTYPE (CLASS::*const&) "$*dartclassname.swigFromNativeCMemberPtr($iminput)"
+%typemap(dartdirectorout) SWIGTYPE (CLASS::*const&) "$imclassname.swigToNativeString($*dartclassname.swigGetCMemberPtr($dartcall))"
 
 /* The dispose method deletes the C++ object if it is owned. $imcall is replaced by the C++ destructor call */
 %typemap(dartdispose) SWIGTYPE %{
@@ -506,12 +583,11 @@ SWIGINTERN const char * SWIG_UnpackData(const char *c, void *ptr, size_t sz) {
 
 /* Array reference typemaps */
 %apply SWIGTYPE & { SWIGTYPE ((&)[ANY]) }
-%apply SWIGTYPE && { SWIGTYPE ((&&)[ANY]) }
+%apply SWIGTYPE & { SWIGTYPE ((&&)[ANY]), SWIGTYPE ((&&)[]), SWIGTYPE ((&&)(ANY)) }
 
-/* const pointers */
-%apply SWIGTYPE * { SWIGTYPE *const }
+/* const and volatile pointers */
+%apply SWIGTYPE * { SWIGTYPE *const, SWIGTYPE *volatile, SWIGTYPE *const volatile }
 %apply SWIGTYPE (CLASS::*) { SWIGTYPE (CLASS::*const) }
-%apply SWIGTYPE & { SWIGTYPE (CLASS::*const&) }
 
 /* String & length. The Dart string is passed as UTF-8 so it can contain null characters, the length is the number of bytes.
  * The bytes are preceded by the length as a 64-bit integer in the memory passed to the C/C++ code. */
